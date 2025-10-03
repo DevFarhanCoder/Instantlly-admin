@@ -10,7 +10,8 @@ import {
   Download,
   Search,
   TrendingUp,
-  Activity
+  Activity,
+  Trash2
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -133,6 +134,30 @@ export default function AdminDashboard() {
     } catch (error) {
       console.error('Error exporting user contacts:', error);
       alert('Failed to export contacts. Please try again.');
+    }
+  };
+
+  const deleteUser = async (userId: string, userName: string) => {
+    // Confirm deletion
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${userName}"?\n\nThis will permanently delete:\n- User account\n- All their cards\n- All their contacts\n- All their messages\n- All their notifications\n- All related data\n\nThis action CANNOT be undone!`
+    );
+    
+    if (!confirmed) return;
+
+    try {
+      await axios.delete(`${API_BASE}/admin/users/${userId}`, {
+        headers: { 'x-admin-key': ADMIN_KEY }
+      });
+      
+      alert(`User "${userName}" has been deleted successfully!`);
+      
+      // Refresh the user list and stats
+      fetchUsers();
+      fetchStats();
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      alert('Failed to delete user. Please try again.');
     }
   };
 
@@ -315,14 +340,24 @@ export default function AdminDashboard() {
                         </div>
                       </td>
                       <td className='px-6 py-4 whitespace-nowrap'>
-                        <button
-                          onClick={() => exportUserContacts(user._id, user.name || user.phone)}
-                          className='flex items-center px-3 py-1.5 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700'
-                          title={`Download ${user.stats?.contacts || 0} contacts`}
-                        >
-                          <Download className='w-3 h-3 mr-1' />
-                          Contacts ({user.stats?.contacts || 0})
-                        </button>
+                        <div className='flex gap-2'>
+                          <button
+                            onClick={() => exportUserContacts(user._id, user.name || user.phone)}
+                            className='flex items-center px-3 py-1.5 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700'
+                            title={`Download ${user.stats?.contacts || 0} contacts`}
+                          >
+                            <Download className='w-3 h-3 mr-1' />
+                            Contacts ({user.stats?.contacts || 0})
+                          </button>
+                          <button
+                            onClick={() => deleteUser(user._id, user.name || user.phone)}
+                            className='flex items-center px-3 py-1.5 bg-red-600 text-white text-xs rounded hover:bg-red-700'
+                            title='Delete user and all related data'
+                          >
+                            <Trash2 className='w-3 h-3 mr-1' />
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

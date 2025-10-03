@@ -11,14 +11,18 @@ import {
   Search,
   TrendingUp,
   Activity,
-  Trash2
+  Trash2,
+  LogOut
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { useRouter } from 'next/navigation';
+import AuthGuard from './components/AuthGuard';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://instantlly-cards-backend.onrender.com/api';
 const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'your-secure-admin-key-here';
 
-export default function AdminDashboard() {
+function DashboardContent() {
+  const router = useRouter();
   const [stats, setStats] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [userGrowth, setUserGrowth] = useState<any[]>([]);
@@ -26,6 +30,12 @@ export default function AdminDashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('adminAuthenticated');
+    sessionStorage.removeItem('adminAuthTime');
+    router.push('/login');
+  };
 
   useEffect(() => {
     fetchStats();
@@ -176,8 +186,19 @@ export default function AdminDashboard() {
     <div className='min-h-screen bg-gray-100'>
       <header className='bg-white shadow'>
         <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6'>
-          <h1 className='text-3xl font-bold text-gray-900'>InstantllyCards Admin Dashboard</h1>
-          <p className='mt-2 text-sm text-gray-600'>Monitor and manage your application</p>
+          <div className='flex justify-between items-center'>
+            <div>
+              <h1 className='text-3xl font-bold text-gray-900'>InstantllyCards Admin Dashboard</h1>
+              <p className='mt-2 text-sm text-gray-600'>Monitor and manage your application</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              className='flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition'
+            >
+              <LogOut className='w-4 h-4' />
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 
@@ -405,5 +426,13 @@ function StatCard({ title, value, icon, trend }: any) {
         <div>{icon}</div>
       </div>
     </div>
+  );
+}
+
+export default function AdminDashboard() {
+  return (
+    <AuthGuard>
+      <DashboardContent />
+    </AuthGuard>
   );
 }

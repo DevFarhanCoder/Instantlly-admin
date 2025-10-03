@@ -116,6 +116,26 @@ export default function AdminDashboard() {
     }
   };
 
+  const exportUserContacts = async (userId: string, userName: string) => {
+    try {
+      const response = await axios.get(`${API_BASE}/admin/users/${userId}/contacts/export`, {
+        headers: { 'x-admin-key': ADMIN_KEY },
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${userName}-contacts-${Date.now()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error('Error exporting user contacts:', error);
+      alert('Failed to export contacts. Please try again.');
+    }
+  };
+
   if (!stats) {
     return (
       <div className='min-h-screen bg-gray-100 flex items-center justify-center'>
@@ -212,7 +232,7 @@ export default function AdminDashboard() {
               <Search className='w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400' />
               <input
                 type='text'
-                placeholder='Search by name, phone, or email...'
+                placeholder='Search by name or phone...'
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
@@ -234,13 +254,13 @@ export default function AdminDashboard() {
                     Phone
                   </th>
                   <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                    Email
-                  </th>
-                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
                     Stats
                   </th>
                   <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
                     Joined
+                  </th>
+                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
+                    Actions
                   </th>
                 </tr>
               </thead>
@@ -283,9 +303,6 @@ export default function AdminDashboard() {
                         <div className='text-sm text-gray-900'>{user.phone}</div>
                       </td>
                       <td className='px-6 py-4 whitespace-nowrap'>
-                        <div className='text-sm text-gray-900'>{user.email || '-'}</div>
-                      </td>
-                      <td className='px-6 py-4 whitespace-nowrap'>
                         <div className='text-sm text-gray-500'>
                           <div>Cards: {user.stats?.cards || 0}</div>
                           <div>Messages: {user.stats?.messages || 0}</div>
@@ -296,6 +313,16 @@ export default function AdminDashboard() {
                         <div className='text-sm text-gray-500'>
                           {new Date(user.createdAt).toLocaleDateString()}
                         </div>
+                      </td>
+                      <td className='px-6 py-4 whitespace-nowrap'>
+                        <button
+                          onClick={() => exportUserContacts(user._id, user.name || user.phone)}
+                          className='flex items-center px-3 py-1.5 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700'
+                          title={`Download ${user.stats?.contacts || 0} contacts`}
+                        >
+                          <Download className='w-3 h-3 mr-1' />
+                          Contacts ({user.stats?.contacts || 0})
+                        </button>
                       </td>
                     </tr>
                   ))

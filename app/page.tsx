@@ -37,7 +37,7 @@ export default function AdminDashboard() {
 
   const fetchStats = async () => {
     try {
-      const response = await axios.get('$'+ '{API_BASE}/admin/stats', {
+      const response = await axios.get(`${API_BASE}/admin/stats`, {
         headers: { 'x-admin-key': ADMIN_KEY }
       });
       setStats(response.data);
@@ -49,7 +49,7 @@ export default function AdminDashboard() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('$'+ '{API_BASE}/admin/users', {
+      const response = await axios.get(`${API_BASE}/admin/users`, {
         headers: { 'x-admin-key': ADMIN_KEY },
         params: {
           page: currentPage,
@@ -68,7 +68,7 @@ export default function AdminDashboard() {
 
   const fetchUserGrowth = async () => {
     try {
-      const response = await axios.get('$'+ '{API_BASE}/admin/analytics/user-growth', {
+      const response = await axios.get(`${API_BASE}/admin/analytics/user-growth`, {
         headers: { 'x-admin-key': ADMIN_KEY },
         params: { days: 30 }
       });
@@ -80,7 +80,7 @@ export default function AdminDashboard() {
 
   const exportAllUsers = async () => {
     try {
-      const response = await axios.get('$'+ '{API_BASE}/admin/users/export', {
+      const response = await axios.get(`${API_BASE}/admin/users/export`, {
         headers: { 'x-admin-key': ADMIN_KEY },
         responseType: 'blob'
       });
@@ -88,7 +88,7 @@ export default function AdminDashboard() {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'users-$'+ '{Date.now()}.csv');
+      link.setAttribute('download', `users-${Date.now()}.csv`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -99,7 +99,7 @@ export default function AdminDashboard() {
 
   const exportPhoneNumbers = async () => {
     try {
-      const response = await axios.get('$'+ '{API_BASE}/admin/users/export-phones', {
+      const response = await axios.get(`${API_BASE}/admin/users/export-phones`, {
         headers: { 'x-admin-key': ADMIN_KEY },
         responseType: 'blob'
       });
@@ -107,7 +107,7 @@ export default function AdminDashboard() {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'phone-numbers-$'+ '{Date.now()}.csv');
+      link.setAttribute('download', `phone-numbers-${Date.now()}.csv`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -142,7 +142,7 @@ export default function AdminDashboard() {
             title='Total Users'
             value={stats.totalUsers}
             icon={<Users className='w-8 h-8 text-blue-600' />}
-            trend={'+'+ '$'+ '{stats.newUsersThisWeek} this week'}
+            trend={`+${stats.newUsersThisWeek} this week`}
           />
           <StatCard
             title='Total Cards'

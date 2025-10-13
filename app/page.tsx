@@ -12,14 +12,13 @@ import {
   TrendingUp,
   Activity,
   Trash2,
-  LogOut
+  LogOut,
+  AlertCircle
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useRouter } from 'next/navigation';
 import AuthGuard from './components/AuthGuard';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://instantlly-cards-backend.onrender.com/api';
-const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'your-secure-admin-key-here';
+import { api, ADMIN_KEY, API_BASE } from './lib/api';
 
 function DashboardContent() {
   const router = useRouter();
@@ -30,6 +29,8 @@ function DashboardContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
+  const [loadingMessage, setLoadingMessage] = useState('Connecting to server...');
+  const [error, setError] = useState<string | null>(null);
 
   const handleLogout = () => {
     sessionStorage.removeItem('adminAuthenticated');
@@ -48,28 +49,32 @@ function DashboardContent() {
 
   const fetchStats = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/admin/stats`, {
-        headers: { 'x-admin-key': ADMIN_KEY }
+      setLoadingMessage('Waking up server (Render free tier may take up to 60 seconds)...');
+      const data = await api.get('/admin/stats', {}, (progress) => {
+        setLoadingMessage(
+          `${progress.message} - Render free tier services sleep after inactivity. Please wait...`
+        );
       });
-      setStats(response.data);
-    } catch (error) {
+      setStats(data);
+      setError(null);
+    } catch (error: any) {
       console.error('Error fetching stats:', error);
+      setError(error.message || 'Failed to connect to server. Please check if the backend is running.');
     }
   };
 
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API_BASE}/admin/users`, {
-        headers: { 'x-admin-key': ADMIN_KEY },
+      const data = await api.get('/admin/users', {
         params: {
           page: currentPage,
           limit: 50,
           search: searchTerm
         }
       });
-      setUsers(response.data.users);
-      setTotalPages(response.data.pagination.totalPages);
+      setUsers(data.users);
+      setTotalPages(data.pagination.totalPages);
     } catch (error) {
       console.error('Error fetching users:', error);
     } finally {
@@ -79,11 +84,10 @@ function DashboardContent() {
 
   const fetchUserGrowth = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/admin/analytics/user-growth`, {
-        headers: { 'x-admin-key': ADMIN_KEY },
+      const data = await api.get('/admin/analytics/user-growth', {
         params: { days: 30 }
       });
-      setUserGrowth(response.data);
+      setUserGrowth(data);
     } catch (error) {
       console.error('Error fetching user growth:', error);
     }
@@ -93,7 +97,8 @@ function DashboardContent() {
     try {
       const response = await axios.get(`${API_BASE}/admin/users/export`, {
         headers: { 'x-admin-key': ADMIN_KEY },
-        responseType: 'blob'
+        responseType: 'blob',
+        timeout: 30000
       });
       
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -105,6 +110,7 @@ function DashboardContent() {
       link.remove();
     } catch (error) {
       console.error('Error exporting users:', error);
+      alert('Failed to export users. Please try again.');
     }
   };
 
@@ -112,7 +118,8 @@ function DashboardContent() {
     try {
       const response = await axios.get(`${API_BASE}/admin/users/export-phones`, {
         headers: { 'x-admin-key': ADMIN_KEY },
-        responseType: 'blob'
+        responseType: 'blob',
+        timeout: 30000
       });
       
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -124,6 +131,7 @@ function DashboardContent() {
       link.remove();
     } catch (error) {
       console.error('Error exporting phone numbers:', error);
+      alert('Failed to export phone numbers. Please try again.');
     }
   };
 
@@ -131,7 +139,8 @@ function DashboardContent() {
     try {
       const response = await axios.get(`${API_BASE}/admin/users/${userId}/contacts/export`, {
         headers: { 'x-admin-key': ADMIN_KEY },
-        responseType: 'blob'
+        responseType: 'blob',
+        timeout: 30000
       });
       
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -156,9 +165,7 @@ function DashboardContent() {
     if (!confirmed) return;
 
     try {
-      await axios.delete(`${API_BASE}/admin/users/${userId}`, {
-        headers: { 'x-admin-key': ADMIN_KEY }
-      });
+      await api.delete(`/admin/users/${userId}`);
       
       alert(`User "${userName}" has been deleted successfully!`);
       
@@ -174,9 +181,45 @@ function DashboardContent() {
   if (!stats) {
     return (
       <div className='min-h-screen bg-gray-100 flex items-center justify-center'>
-        <div className='text-center'>
-          <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto'></div>
-          <p className='mt-4 text-gray-600'>Loading dashboard...</p>
+        <div className='text-center max-w-md mx-auto p-6'>
+          {error ? (
+            <div className='bg-red-50 border border-red-200 rounded-lg p-6'>
+              <AlertCircle className='w-12 h-12 text-red-600 mx-auto mb-4' />
+              <h3 className='text-lg font-semibold text-red-900 mb-2'>Connection Failed</h3>
+              <p className='text-sm text-red-700 mb-4'>{error}</p>
+              <div className='space-y-2 text-left text-xs text-red-600 bg-red-100 p-3 rounded'>
+                <p><strong>Possible reasons:</strong></p>
+                <ul className='list-disc list-inside space-y-1'>
+                  <li>Render free tier service is sleeping (takes 50-90 seconds to wake up)</li>
+                  <li>Backend is not deployed or has errors</li>
+                  <li>Network connectivity issues</li>
+                </ul>
+              </div>
+              <button
+                onClick={() => {
+                  setError(null);
+                  setStats(null);
+                  fetchStats();
+                }}
+                className='mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition'
+              >
+                Retry Connection
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto'></div>
+              <p className='mt-4 text-gray-900 font-medium'>{loadingMessage}</p>
+              <p className='mt-2 text-sm text-gray-500'>
+                This may take up to 90 seconds if the server was sleeping...
+              </p>
+              <div className='mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-left text-xs text-gray-600'>
+                <p className='font-semibold text-blue-900 mb-2'>ℹ️ Why is this taking so long?</p>
+                <p>Render's free tier services automatically sleep after 15 minutes of inactivity to save resources. 
+                When you access the dashboard, it needs to wake up the server, which can take 50-90 seconds on the first request.</p>
+              </div>
+            </>
+          )}
         </div>
       </div>
     );

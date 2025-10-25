@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import axios from 'axios';
 import {
   Users,
@@ -45,6 +46,7 @@ function DashboardContent() {
 
   useEffect(() => {
     fetchUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, searchTerm]);
 
   const fetchStats = async () => {
@@ -215,7 +217,7 @@ function DashboardContent() {
               </p>
               <div className='mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-left text-xs text-gray-600'>
                 <p className='font-semibold text-blue-900 mb-2'>ℹ️ Why is this taking so long?</p>
-                <p>Render's free tier services automatically sleep after 15 minutes of inactivity to save resources. 
+                <p>Render&apos;s free tier services automatically sleep after 15 minutes of inactivity to save resources. 
                 When you access the dashboard, it needs to wake up the server, which can take 50-90 seconds on the first request.</p>
               </div>
             </>
@@ -373,7 +375,7 @@ function DashboardContent() {
                         <div className='flex items-center'>
                           <div className='flex-shrink-0 h-10 w-10'>
                             {user.profilePicture ? (
-                              <img className='h-10 w-10 rounded-full' src={user.profilePicture} alt='' />
+                              <Image className='h-10 w-10 rounded-full' src={user.profilePicture} alt='' width={40} height={40} />
                             ) : (
                               <div className='h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center'>
                                 <span className='text-gray-600 font-medium'>

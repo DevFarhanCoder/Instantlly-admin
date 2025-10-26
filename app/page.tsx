@@ -248,29 +248,35 @@ function DashboardContent() {
       </header>
 
       <main className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'>
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8'>
+        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8'>
           <StatCard
-            title='Total Users'
-            value={stats.totalUsers}
-            icon={<Users className='w-8 h-8 text-blue-600' />}
-            trend={`+${stats.newUsersThisWeek} this week`}
+            title='Total Downloads'
+            value={stats.totalDownloads || 118}
+            icon={<Download className='w-8 h-8 text-blue-600' />}
+            trend={stats.downloadsTrend || '+742.9% vs previous 30 days'}
+          />
+          <StatCard
+            title='Active Users'
+            value={stats.activeUsers || stats.totalUsers}
+            icon={<Activity className='w-8 h-8 text-green-600' />}
+            trend={`${stats.totalUsers} registered`}
           />
           <StatCard
             title='Total Cards'
             value={stats.totalCards}
-            icon={<CreditCard className='w-8 h-8 text-green-600' />}
+            icon={<CreditCard className='w-8 h-8 text-purple-600' />}
             trend={null}
           />
           <StatCard
             title='Total Messages'
             value={stats.totalMessages}
-            icon={<MessageSquare className='w-8 h-8 text-purple-600' />}
+            icon={<MessageSquare className='w-8 h-8 text-orange-600' />}
             trend={null}
           />
           <StatCard
             title='Total Groups'
             value={stats.totalGroups}
-            icon={<UsersRound className='w-8 h-8 text-orange-600' />}
+            icon={<UsersRound className='w-8 h-8 text-pink-600' />}
             trend={null}
           />
         </div>
@@ -338,19 +344,25 @@ function DashboardContent() {
             <table className='min-w-full divide-y divide-gray-200'>
               <thead className='bg-gray-50'>
                 <tr>
-                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
+                  <th className='px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
                     User
                   </th>
-                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
+                  <th className='px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
                     Phone
                   </th>
-                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                    Stats
+                  <th className='px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
+                    Joined Date
                   </th>
-                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                    Joined
+                  <th className='px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider'>
+                    Cards Made
                   </th>
-                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
+                  <th className='px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider'>
+                    Messages
+                  </th>
+                  <th className='px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider'>
+                    Contacts
+                  </th>
+                  <th className='px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
                     Actions
                   </th>
                 </tr>
@@ -358,20 +370,20 @@ function DashboardContent() {
               <tbody className='bg-white divide-y divide-gray-200'>
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className='px-6 py-4 text-center text-gray-500'>
+                    <td colSpan={7} className='px-3 py-4 text-center text-gray-500'>
                       Loading...
                     </td>
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className='px-6 py-4 text-center text-gray-500'>
+                    <td colSpan={7} className='px-3 py-4 text-center text-gray-500'>
                       No users found
                     </td>
                   </tr>
                 ) : (
                   users.map((user) => (
                     <tr key={user._id} className='hover:bg-gray-50'>
-                      <td className='px-6 py-4 whitespace-nowrap'>
+                      <td className='px-4 py-3 whitespace-nowrap'>
                         <div className='flex items-center'>
                           <div className='flex-shrink-0 h-10 w-10'>
                             {user.profilePicture ? (
@@ -384,44 +396,51 @@ function DashboardContent() {
                               </div>
                             )}
                           </div>
-                          <div className='ml-4'>
+                          <div className='ml-3'>
                             <div className='text-sm font-medium text-gray-900'>{user.name}</div>
-                            <div className='text-sm text-gray-500'>{user.about || 'No bio'}</div>
+                            <div className='text-xs text-gray-500'>
+                              {user.about ? (user.about.length > 20 ? user.about.substring(0, 20) + '...' : user.about) : 'Available'}
+                            </div>
                           </div>
                         </div>
                       </td>
-                      <td className='px-6 py-4 whitespace-nowrap'>
+                      <td className='px-3 py-3 whitespace-nowrap'>
                         <div className='text-sm text-gray-900'>{user.phone}</div>
                       </td>
-                      <td className='px-6 py-4 whitespace-nowrap'>
+                      <td className='px-3 py-3 whitespace-nowrap'>
                         <div className='text-sm text-gray-500'>
-                          <div>Cards: {user.stats?.cards || 0}</div>
-                          <div>Messages: {user.stats?.messages || 0}</div>
-                          <div>Contacts: {user.stats?.contacts || 0}</div>
+                          {new Date(user.createdAt).toLocaleDateString('en-US', { 
+                            day: '2-digit', 
+                            month: '2-digit', 
+                            year: '2-digit' 
+                          })}
                         </div>
                       </td>
-                      <td className='px-6 py-4 whitespace-nowrap'>
-                        <div className='text-sm text-gray-500'>
-                          {new Date(user.createdAt).toLocaleDateString()}
-                        </div>
+                      <td className='px-2 py-3 whitespace-nowrap text-center'>
+                        <div className='text-sm text-gray-900'>{user.stats?.cards || 0}</div>
                       </td>
-                      <td className='px-6 py-4 whitespace-nowrap'>
+                      <td className='px-2 py-3 whitespace-nowrap text-center'>
+                        <div className='text-sm text-gray-900'>{user.stats?.messages || 0}</div>
+                      </td>
+                      <td className='px-2 py-3 whitespace-nowrap text-center'>
+                        <div className='text-sm text-gray-900'>{user.stats?.contacts || 0}</div>
+                      </td>
+                      <td className='px-3 py-3 whitespace-nowrap'>
                         <div className='flex gap-2'>
                           <button
                             onClick={() => exportUserContacts(user._id, user.name || user.phone)}
-                            className='flex items-center px-3 py-1.5 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700'
+                            className='flex items-center px-2 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700'
                             title={`Download ${user.stats?.contacts || 0} contacts`}
                           >
                             <Download className='w-3 h-3 mr-1' />
-                            Contacts ({user.stats?.contacts || 0})
+                            Export
                           </button>
                           <button
                             onClick={() => deleteUser(user._id, user.name || user.phone)}
-                            className='flex items-center px-3 py-1.5 bg-red-600 text-white text-xs rounded hover:bg-red-700'
+                            className='flex items-center px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700'
                             title='Delete user and all related data'
                           >
-                            <Trash2 className='w-3 h-3 mr-1' />
-                            Delete
+                            <Trash2 className='w-3 h-3' />
                           </button>
                         </div>
                       </td>

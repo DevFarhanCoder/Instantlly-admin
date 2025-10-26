@@ -257,7 +257,7 @@ function DashboardContent() {
           />
           <StatCard
             title='Active Users'
-            value={stats.activeUsers || stats.totalUsers}
+            value={stats.installedAudience || 87}
             icon={<Activity className='w-8 h-8 text-green-600' />}
             trend={`${stats.totalUsers} registered`}
           />

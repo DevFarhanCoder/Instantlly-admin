@@ -75,7 +75,20 @@ function DashboardContent() {
           search: searchTerm
         }
       });
-      setUsers(data.users);
+      // Ensure profile picture URLs are absolute so Next Image optimizer
+      // (which runs on the admin host) requests images from the backend
+      // where uploads are served. Backend returns paths like
+      // `/uploads/profiles/...` so prepend the backend origin.
+      const backendOrigin = API_BASE.replace('/api', '');
+      const usersWithFullPics = (data.users || []).map((u: any) => {
+        const pic = u.profilePicture;
+        if (pic && typeof pic === 'string' && pic.startsWith('/uploads')) {
+          return { ...u, profilePicture: `${backendOrigin}${pic}` };
+        }
+        return u;
+      });
+
+      setUsers(usersWithFullPics);
       setTotalPages(data.pagination.totalPages);
     } catch (error) {
       console.error('Error fetching users:', error);

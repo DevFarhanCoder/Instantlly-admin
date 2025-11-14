@@ -52,7 +52,7 @@ function DashboardContent() {
   const fetchStats = async () => {
     try {
       setLoadingMessage('Waking up server (Render free tier may take up to 60 seconds)...');
-      const data = await api.get('/admin/stats', {}, (progress) => {
+      const data = await api.get('/api/admin/stats', {}, (progress) => {
         setLoadingMessage(
           `${progress.message} - Render free tier services sleep after inactivity. Please wait...`
         );
@@ -68,7 +68,7 @@ function DashboardContent() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const data = await api.get('/admin/users', {
+      const data = await api.get('/api/admin/users', {
         params: {
           page: currentPage,
           limit: 50,

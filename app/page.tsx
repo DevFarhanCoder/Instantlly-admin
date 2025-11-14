@@ -99,7 +99,7 @@ function DashboardContent() {
 
   const fetchUserGrowth = async () => {
     try {
-      const data = await api.get('/admin/analytics/user-growth', {
+      const data = await api.get('/api/admin/analytics/user-growth', {
         params: { days: 30 }
       });
       setUserGrowth(data);
@@ -110,7 +110,7 @@ function DashboardContent() {
 
   const exportAllUsers = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/admin/users/export`, {
+      const response = await axios.get(`${API_BASE}/api/admin/users/export`, {
         headers: { 'x-admin-key': ADMIN_KEY },
         responseType: 'blob',
         timeout: 30000
@@ -131,7 +131,7 @@ function DashboardContent() {
 
   const exportPhoneNumbers = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/admin/users/export-phones`, {
+      const response = await axios.get(`${API_BASE}/api/admin/users/export-phones`, {
         headers: { 'x-admin-key': ADMIN_KEY },
         responseType: 'blob',
         timeout: 30000
@@ -152,7 +152,7 @@ function DashboardContent() {
 
   const exportUserContacts = async (userId: string, userName: string) => {
     try {
-      const response = await axios.get(`${API_BASE}/admin/users/${userId}/contacts/export`, {
+      const response = await axios.get(`${API_BASE}/api/admin/users/${userId}/contacts/export`, {
         headers: { 'x-admin-key': ADMIN_KEY },
         responseType: 'blob',
         timeout: 30000
@@ -180,7 +180,7 @@ function DashboardContent() {
     if (!confirmed) return;
 
     try {
-      await api.delete(`/admin/users/${userId}`);
+      await api.delete(`/api/admin/users/${userId}`);
       
       alert(`User "${userName}" has been deleted successfully!`);
       

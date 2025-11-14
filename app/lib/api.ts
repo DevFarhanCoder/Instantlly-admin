@@ -1,6 +1,6 @@
 import axios, { AxiosRequestConfig } from 'axios';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://instantlly-cards-backend-6ki0.onrender.com/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://instantlly-cards-backend-6ki0.onrender.com';
 const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || 'your-secure-admin-key-here';
 
 // Render free tier can take 50+ seconds to wake up from sleep

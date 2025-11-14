@@ -249,13 +249,22 @@ function DashboardContent() {
               <h1 className='text-3xl font-bold text-gray-900'>InstantllyCards Admin Dashboard</h1>
               <p className='mt-2 text-sm text-gray-600'>Monitor and manage your application</p>
             </div>
-            <button
-              onClick={handleLogout}
-              className='flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition'
-            >
-              <LogOut className='w-4 h-4' />
-              Logout
-            </button>
+            <div className='flex items-center gap-3'>
+              <button
+                onClick={() => router.push('/feedback')}
+                className='flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition'
+              >
+                <MessageSquare className='w-4 h-4' />
+                User Feedback
+              </button>
+              <button
+                onClick={handleLogout}
+                className='flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition'
+              >
+                <LogOut className='w-4 h-4' />
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </header>

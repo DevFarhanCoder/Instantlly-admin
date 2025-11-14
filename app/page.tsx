@@ -273,7 +273,7 @@ function DashboardContent() {
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8'>
           <StatCard
             title='Total Downloads'
-            value={stats.totalDownloads || 118}
+            value={stats.totalDownloads || 190}
             icon={<Download className='w-8 h-8 text-blue-600' />}
             trend={stats.downloadsTrend || '+742.9% vs previous 30 days'}
           />

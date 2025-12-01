@@ -97,7 +97,7 @@ User logs in → Dashboard loads →
 
 ### Option 2: Keep Server Awake (Free Tier Workaround)
 Use a service like UptimeRobot or Cron-job.org to ping your backend every 10 minutes:
-- URL to ping: `https://instantlly-cards-backend.onrender.com/api/health`
+- URL to ping: `https://api.instantllycards.com/api/health`
 - Interval: Every 10 minutes
 - This prevents the service from sleeping
 
@@ -111,7 +111,7 @@ Consider these alternatives:
 
 ### Check if Server is Awake
 ```bash
-curl https://instantlly-cards-backend.onrender.com/api/health
+curl https://api.instantllycards.com/api/health
 ```
 
 If response takes >30 seconds, server was sleeping.
@@ -132,7 +132,7 @@ If response takes >30 seconds, server was sleeping.
 
 Make sure these are set in `.env.local`:
 ```bash
-NEXT_PUBLIC_API_BASE=https://instantlly-cards-backend.onrender.com/api
+NEXT_PUBLIC_API_BASE=https://api.instantllycards.com/api
 NEXT_PUBLIC_ADMIN_KEY=your-secure-admin-key-here
 ```
 
@@ -147,7 +147,7 @@ If you still see errors after 90 seconds:
 
 2. **Test Backend Directly**:
    ```bash
-   curl https://instantlly-cards-backend.onrender.com/api/health
+   curl https://api.instantllycards.com/api/health
    ```
 
 3. **Check Browser Console**: 

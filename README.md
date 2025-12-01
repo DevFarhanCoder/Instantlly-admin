@@ -64,7 +64,9 @@ Edit `.env.local`:## Deploy on Vercel
 
 ```env
 
-NEXT_PUBLIC_API_BASE=https://instantlly-cards-backend.onrender.com/apiThe easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+NEXT_PUBLIC_API_BASE=https://api.instantllycards.com/api
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 NEXT_PUBLIC_ADMIN_KEY=your-secure-admin-key-here
 

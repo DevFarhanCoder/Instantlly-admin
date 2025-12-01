@@ -41,7 +41,7 @@ I've fixed the issue by:
 
 3. **Optional - Keep server awake**:
    - Use UptimeRobot (free) to ping your backend every 10 minutes
-   - URL to monitor: `https://instantlly-cards-backend.onrender.com/api/health`
+   - URL to monitor: `https://api.instantllycards.com/api/health`
    - This prevents the server from sleeping
 
 ## 🔍 What Changed
@@ -72,7 +72,7 @@ Check these:
 1. Is backend deployed on Render? Check https://dashboard.render.com
 2. Are environment variables set in `.env.local`?
 3. Open browser console (F12) and check for error messages
-4. Try pinging backend manually: https://instantlly-cards-backend.onrender.com/api/health
+4. Try pinging backend manually: https://api.instantllycards.com/api/health
 
 ---
 

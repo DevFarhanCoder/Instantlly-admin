@@ -14,7 +14,8 @@ import {
   Activity,
   Trash2,
   LogOut,
-  AlertCircle
+  AlertCircle,
+  Gift
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useRouter } from 'next/navigation';
@@ -250,6 +251,13 @@ function DashboardContent() {
               <p className='mt-2 text-sm text-gray-600'>Monitor and manage your application</p>
             </div>
             <div className='flex items-center gap-3'>
+              <button
+                onClick={() => router.push('/referral')}
+                className='flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition'
+              >
+                <Gift className='w-4 h-4' />
+                Referral System
+              </button>
               <button
                 onClick={() => router.push('/feedback')}
                 className='flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition'

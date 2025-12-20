@@ -4,9 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
+    "dev:staging": "next dev --turbopack",
     "build": "next build --turbopack",
+    "build:staging": "next build --turbopack",
+    "build:production": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "deploy:staging": "vercel --prod",
+    "deploy:production": "vercel --prod"
   },
   "dependencies": {
     "axios": "^1.12.2",

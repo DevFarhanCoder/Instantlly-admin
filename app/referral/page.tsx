@@ -177,7 +177,7 @@ function ReferralSystemContent() {
               <h3 className='text-sm font-semibold text-purple-900 mb-2'>Preview</h3>
               <ul className='space-y-1 text-sm text-purple-800'>
                 <li>• New user signs up → Gets <span className='font-bold'>{signupBonus} credits</span></li>
-                <li>• Existing user's referral code used → Gets <span className='font-bold'>{referralReward} credits</span></li>
+                <li>• Existing user&apos;s referral code used → Gets <span className='font-bold'>{referralReward} credits</span></li>
               </ul>
             </div>
 
@@ -220,7 +220,7 @@ function ReferralSystemContent() {
             </li>
             <li className='flex items-start'>
               <span className='mr-2'>•</span>
-              <span><strong>Immediate effect:</strong> New values apply instantly after clicking "Update Referral"</span>
+              <span><strong>Immediate effect:</strong> New values apply instantly after clicking &quot;Update Referral&quot;</span>
             </li>
             <li className='flex items-start'>
               <span className='mr-2'>•</span>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import {
   MessageSquare,
@@ -54,11 +54,7 @@ function FeedbackContent() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
 
-  useEffect(() => {
-    fetchFeedbacks();
-  }, [statusFilter, currentPage]);
-
-  const fetchFeedbacks = async () => {
+  const fetchFeedbacks = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -96,7 +92,11 @@ function FeedbackContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter, currentPage, router]);
+
+  useEffect(() => {
+    fetchFeedbacks();
+  }, [fetchFeedbacks]);
 
   const updateFeedbackStatus = async (feedbackId: string, status: string) => {
     try {

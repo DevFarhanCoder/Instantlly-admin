@@ -152,7 +152,7 @@ function ReferralSystemContent() {
                 type='number'
                 value={signupBonus}
                 onChange={(e) => setSignupBonus(Number(e.target.value))}
-                className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent'
+                className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-black font-medium'
                 min='0'
               />
             </div>
@@ -168,7 +168,7 @@ function ReferralSystemContent() {
                 type='number'
                 value={referralReward}
                 onChange={(e) => setReferralReward(Number(e.target.value))}
-                className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent'
+                className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-black font-medium'
                 min='0'
               />
             </div>

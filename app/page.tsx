@@ -251,6 +251,13 @@ function DashboardContent() {
             </div>
             <div className='flex items-center gap-3'>
               <button
+                onClick={() => router.push('/referral-tracking')}
+                className='flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition'
+              >
+                <UsersRound className='w-4 h-4' />
+                Referral Tracking
+              </button>
+              <button
                 onClick={() => router.push('/referral')}
                 className='flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition'
               >

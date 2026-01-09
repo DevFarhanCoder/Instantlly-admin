@@ -398,6 +398,9 @@ function DashboardContent() {
                   <th className='px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider'>
                     Contacts
                   </th>
+                  <th className='px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider'>
+                    Total Credits
+                  </th>
                   <th className='px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
                     Actions
                   </th>
@@ -406,13 +409,13 @@ function DashboardContent() {
               <tbody className='bg-white divide-y divide-gray-200'>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className='px-3 py-4 text-center text-gray-500'>
+                    <td colSpan={8} className='px-3 py-4 text-center text-gray-500'>
                       Loading...
                     </td>
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className='px-3 py-4 text-center text-gray-500'>
+                    <td colSpan={8} className='px-3 py-4 text-center text-gray-500'>
                       No users found
                     </td>
                   </tr>
@@ -460,6 +463,9 @@ function DashboardContent() {
                       </td>
                       <td className='px-2 py-3 whitespace-nowrap text-center'>
                         <div className='text-sm text-gray-900'>{user.stats?.contacts || 0}</div>
+                      </td>
+                      <td className='px-2 py-3 whitespace-nowrap text-center'>
+                        <div className='text-sm font-semibold text-green-600'>{user.stats?.credits?.toLocaleString() || 0}</div>
                       </td>
                       <td className='px-3 py-3 whitespace-nowrap'>
                         <div className='flex gap-2'>

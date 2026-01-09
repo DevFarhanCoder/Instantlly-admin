@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Users, TrendingUp, Award, Search, Download, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Users, TrendingUp, Award, Search, Download, RefreshCw, X, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import AuthGuard from '../components/AuthGuard';
 import { api } from '../lib/api';
@@ -34,6 +34,32 @@ interface ReferralStats {
   }>;
 }
 
+interface ReferralChainData {
+  user: {
+    userId: string;
+    name: string;
+    phone: string;
+    referralCode: string;
+    joinedDate: string;
+  };
+  referredUsers: Array<{
+    userId: string;
+    name: string;
+    phone: string;
+    referralCode: string;
+    totalReferrals: number;
+    creditsEarned: number;
+    joinedDate: string;
+  }>;
+  totalCount: number;
+}
+
+interface ChainLevel {
+  userId: string;
+  userName: string;
+  level: number;
+}
+
 function ReferralTrackingContent() {
   const router = useRouter();
   const [stats, setStats] = useState<ReferralStats | null>(null);
@@ -41,6 +67,12 @@ function ReferralTrackingContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDays, setFilterDays] = useState(30);
   const [error, setError] = useState<string | null>(null);
+  
+  // Modal state
+  const [showModal, setShowModal] = useState(false);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [chainData, setChainData] = useState<ReferralChainData | null>(null);
+  const [breadcrumb, setBreadcrumb] = useState<ChainLevel[]>([]);
 
   useEffect(() => {
     fetchReferralStats();
@@ -63,6 +95,52 @@ function ReferralTrackingContent() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchReferralChain = async (userId: string, userName: string, level: number = 1) => {
+    setModalLoading(true);
+    try {
+      const response = await api.get(`/api/admin/referral-chain/${userId}`);
+      
+      if (response.success) {
+        setChainData(response.data);
+        
+        // Update breadcrumb
+        if (level === 1) {
+          // First level - reset breadcrumb
+          setBreadcrumb([{ userId, userName, level }]);
+        } else {
+          // Deeper level - add to breadcrumb
+          setBreadcrumb(prev => [...prev, { userId, userName, level }]);
+        }
+      }
+    } catch (err: any) {
+      console.error('Error fetching referral chain:', err);
+      alert('Failed to load referral chain: ' + (err.message || 'Unknown error'));
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleReferralClick = (userId: string, userName: string, totalReferrals: number) => {
+    if (totalReferrals === 0) {
+      return; // Don't open modal if no referrals
+    }
+    setShowModal(true);
+    fetchReferralChain(userId, userName, 1);
+  };
+
+  const handleBreadcrumbClick = (index: number) => {
+    const level = breadcrumb[index];
+    // Remove all levels after the clicked one
+    setBreadcrumb(prev => prev.slice(0, index + 1));
+    fetchReferralChain(level.userId, level.userName, level.level);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setChainData(null);
+    setBreadcrumb([]);
   };
 
   const exportToCSV = () => {
@@ -153,7 +231,7 @@ function ReferralTrackingContent() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-gray-600 text-sm font-medium">Total Referrals</p>
+              <p className="text-gray-600 text-sm font-medium">Joined Via Referral Code</p>
               <Users className="w-5 h-5 text-blue-600" />
             </div>
             <p className="text-3xl font-bold text-gray-900">{stats?.totalReferrals.toLocaleString() || 0}</p>
@@ -248,7 +326,17 @@ function ReferralTrackingContent() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-semibold text-gray-900">{referrer.totalReferrals}</div>
+                        <button
+                          onClick={() => handleReferralClick(referrer.userId, referrer.name, referrer.totalReferrals)}
+                          disabled={referrer.totalReferrals === 0}
+                          className={`text-sm font-semibold ${
+                            referrer.totalReferrals > 0 
+                              ? 'text-purple-600 hover:text-purple-800 cursor-pointer hover:underline' 
+                              : 'text-gray-400 cursor-not-allowed'
+                          }`}
+                        >
+                          {referrer.totalReferrals}
+                        </button>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-semibold text-green-600">{referrer.creditsEarned.toLocaleString()}</div>
@@ -301,6 +389,149 @@ function ReferralTrackingContent() {
           </div>
         </div>
       </main>
+
+      {/* Referral Chain Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-purple-50">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Referral Chain</h2>
+                {/* Breadcrumb */}
+                <div className="flex items-center gap-2 mt-2 text-sm">
+                  {breadcrumb.map((level, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      {index > 0 && <ChevronRight className="w-4 h-4 text-gray-400" />}
+                      <button
+                        onClick={() => handleBreadcrumbClick(index)}
+                        className={`${
+                          index === breadcrumb.length - 1
+                            ? 'text-purple-600 font-semibold'
+                            : 'text-gray-600 hover:text-purple-600'
+                        }`}
+                      >
+                        {level.userName}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <button
+                onClick={closeModal}
+                className="text-gray-400 hover:text-gray-600 transition"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              {modalLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="w-8 h-8 text-purple-600 animate-spin" />
+                </div>
+              ) : chainData ? (
+                <div>
+                  {/* User Info */}
+                  <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg mb-6 border border-purple-200">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1">Name</p>
+                        <p className="font-semibold text-gray-900">{chainData.user.name}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1">Phone</p>
+                        <p className="font-semibold text-gray-900">{chainData.user.phone}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1">Referral Code</p>
+                        <span className="px-3 py-1 inline-flex text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
+                          {chainData.user.referralCode}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 mb-1">Total Referred</p>
+                        <p className="font-bold text-purple-600 text-lg">{chainData.totalCount}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Referred Users Table */}
+                  {chainData.referredUsers.length === 0 ? (
+                    <div className="text-center py-12 text-gray-500">
+                      <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                      <p>No users referred yet</p>
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Referral Code</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Referrals</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Credits Earned</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined Date</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {chainData.referredUsers.map((user, index) => (
+                              <tr key={user.userId} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                                  {index + 1}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <div className="text-sm text-gray-600">{user.phone}</div>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
+                                    {user.referralCode}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <button
+                                    onClick={() => fetchReferralChain(user.userId, user.name, breadcrumb.length + 1)}
+                                    disabled={user.totalReferrals === 0}
+                                    className={`text-sm font-semibold ${
+                                      user.totalReferrals > 0
+                                        ? 'text-purple-600 hover:text-purple-800 cursor-pointer hover:underline flex items-center gap-1'
+                                        : 'text-gray-400 cursor-not-allowed'
+                                    }`}
+                                  >
+                                    {user.totalReferrals}
+                                    {user.totalReferrals > 0 && <ChevronRight className="w-4 h-4" />}
+                                  </button>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <div className="text-sm font-semibold text-green-600">
+                                    {user.creditsEarned.toLocaleString()}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <div className="text-sm text-gray-600">
+                                    {new Date(user.joinedDate).toLocaleDateString()}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -251,6 +251,13 @@ function DashboardContent() {
             </div>
             <div className='flex items-center gap-3'>
               <button
+                onClick={() => router.push('/credit-transfer')}
+                className='flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition'
+              >
+                <CreditCard className='w-4 h-4' />
+                Credit Transfer
+              </button>
+              <button
                 onClick={() => router.push('/referral-tracking')}
                 className='flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition'
               >

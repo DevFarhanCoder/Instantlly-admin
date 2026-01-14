@@ -32,6 +32,7 @@ function DashboardContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [loadingMessage, setLoadingMessage] = useState('Connecting to server...');
   const [error, setError] = useState<string | null>(null);
+  const [creditSort, setCreditSort] = useState<'asc' | 'desc' | null>(null);
 
   const handleLogout = () => {
     sessionStorage.removeItem('adminAuthenticated');
@@ -47,7 +48,7 @@ function DashboardContent() {
   useEffect(() => {
     fetchUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, searchTerm]);
+  }, [currentPage, searchTerm, creditSort]);
 
   const fetchStats = async () => {
     try {
@@ -68,13 +69,20 @@ function DashboardContent() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const data = await api.get('/api/admin/users', {
-        params: {
-          page: currentPage,
-          limit: 50,
-          search: searchTerm
-        }
-      });
+      const params: any = {
+        page: currentPage,
+        limit: 50,
+        search: searchTerm
+      };
+
+      // Add credit sorting parameter for backend to sort entire database
+      if (creditSort) {
+        params.sortBy = 'credits';
+        params.sortOrder = creditSort;
+      }
+
+      const data = await api.get('/api/admin/users', { params });
+      
       // Ensure profile picture URLs are absolute so Next Image optimizer
       // (which runs on the admin host) requests images from the backend
       // where uploads are served. Backend returns paths like
@@ -244,43 +252,47 @@ function DashboardContent() {
     <div className='min-h-screen bg-gray-100'>
       <header className='bg-white shadow'>
         <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6'>
-          <div className='flex justify-between items-center'>
+          <div className='flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4'>
             <div>
-              <h1 className='text-3xl font-bold text-gray-900'>InstantllyCards Admin Dashboard</h1>
+              <h1 className='text-2xl sm:text-3xl font-bold text-gray-900'>Admin Dashboard</h1>
               <p className='mt-2 text-sm text-gray-600'>Monitor and manage your application</p>
             </div>
-            <div className='flex items-center gap-3'>
+            <div className='flex flex-wrap items-center gap-2 w-full lg:w-auto'>
               <button
                 onClick={() => router.push('/credit-transfer')}
-                className='flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition'
+                className='flex items-center gap-2 px-3 sm:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition whitespace-nowrap text-sm'
               >
                 <CreditCard className='w-4 h-4' />
-                Credit Transfer
+                <span className='hidden sm:inline'>Credit Transfer</span>
+                <span className='sm:hidden'>Credits</span>
               </button>
               <button
                 onClick={() => router.push('/referral-tracking')}
-                className='flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition'
+                className='flex items-center gap-2 px-3 sm:px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition whitespace-nowrap text-sm'
               >
                 <UsersRound className='w-4 h-4' />
-                Referral Tracking
+                <span className='hidden sm:inline'>Referral Tracking</span>
+                <span className='sm:hidden'>Tracking</span>
               </button>
               <button
                 onClick={() => router.push('/referral')}
-                className='flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition'
+                className='flex items-center gap-2 px-3 sm:px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition whitespace-nowrap text-sm'
               >
                 <Gift className='w-4 h-4' />
-                Referral System
+                <span className='hidden sm:inline'>Referral System</span>
+                <span className='sm:hidden'>Referral</span>
               </button>
               <button
                 onClick={() => router.push('/feedback')}
-                className='flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition'
+                className='flex items-center gap-2 px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition whitespace-nowrap text-sm'
               >
                 <MessageSquare className='w-4 h-4' />
-                User Feedback
+                <span className='hidden sm:inline'>User Feedback</span>
+                <span className='sm:hidden'>Feedback</span>
               </button>
               <button
                 onClick={handleLogout}
-                className='flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition'
+                className='flex items-center gap-2 px-3 sm:px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition whitespace-nowrap text-sm'
               >
                 <LogOut className='w-4 h-4' />
                 Logout
@@ -291,18 +303,12 @@ function DashboardContent() {
       </header>
 
       <main className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'>
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8'>
+        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8'>
           <StatCard
             title='Total Downloads'
-            value={stats.totalDownloads || 190}
+            value={stats.totalDownloads || '1.75K'}
             icon={<Download className='w-8 h-8 text-blue-600' />}
             trend={stats.downloadsTrend || '+742.9% vs previous 30 days'}
-          />
-          <StatCard
-            title='Active Users'
-            value={stats.installedAudience || 87}
-            icon={<Activity className='w-8 h-8 text-green-600' />}
-            trend={`${stats.totalUsers} registered`}
           />
           <StatCard
             title='Total Cards'
@@ -352,18 +358,26 @@ function DashboardContent() {
               </h2>
               <div className='flex gap-2'>
                 <button
-                  onClick={exportAllUsers}
-                  className='flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700'
+                  onClick={() => setCreditSort(creditSort === 'desc' ? null : 'desc')}
+                  className={`flex items-center px-4 py-2 rounded-lg transition ${
+                    creditSort === 'desc'
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
                 >
-                  <Download className='w-4 h-4 mr-2' />
-                  Export All Users
+                  <TrendingUp className='w-4 h-4 mr-2' />
+                  Highest Credits
                 </button>
                 <button
-                  onClick={exportPhoneNumbers}
-                  className='flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700'
+                  onClick={() => setCreditSort(creditSort === 'asc' ? null : 'asc')}
+                  className={`flex items-center px-4 py-2 rounded-lg transition ${
+                    creditSort === 'asc'
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
                 >
-                  <Download className='w-4 h-4 mr-2' />
-                  Export Phone Numbers
+                  <TrendingUp className='w-4 h-4 mr-2 rotate-180' />
+                  Lowest Credits
                 </button>
               </div>
             </div>

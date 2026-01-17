@@ -81,7 +81,11 @@ function DashboardContent() {
         params.sortOrder = creditSort;
       }
 
+      console.log('🔍 Fetching users with params:', params);
+
       const data = await api.get('/api/admin/users', { params });
+      
+      console.log('📦 Received users:', data.users?.length, 'First user credits:', data.users?.[0]?.stats?.credits, 'Last user credits:', data.users?.[data.users?.length - 1]?.stats?.credits);
       
       // Ensure profile picture URLs are absolute so Next Image optimizer
       // (which runs on the admin host) requests images from the backend

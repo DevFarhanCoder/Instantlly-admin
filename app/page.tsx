@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import axios from 'axios';
 import {
@@ -411,9 +411,6 @@ function DashboardContent() {
                   <th className='px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
                     Phone
                   </th>
-                  <th className='px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                    Joined Date
-                  </th>
                   <th className='px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider'>
                     Cards Made
                   </th>
@@ -434,85 +431,108 @@ function DashboardContent() {
               <tbody className='bg-white divide-y divide-gray-200'>
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className='px-3 py-4 text-center text-gray-500'>
+                    <td colSpan={7} className='px-3 py-4 text-center text-gray-500'>
                       Loading...
                     </td>
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className='px-3 py-4 text-center text-gray-500'>
+                    <td colSpan={7} className='px-3 py-4 text-center text-gray-500'>
                       No users found
                     </td>
                   </tr>
                 ) : (
-                  users.map((user) => (
-                    <tr key={user._id} className='hover:bg-gray-50'>
-                      <td className='px-4 py-3 whitespace-nowrap'>
-                        <div className='flex items-center'>
-                          <div className='flex-shrink-0 h-10 w-10'>
-                            {user.profilePicture ? (
-                              <Image className='h-10 w-10 rounded-full' src={user.profilePicture} alt='' width={40} height={40} />
-                            ) : (
-                              <div className='h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center'>
-                                <span className='text-gray-600 font-medium'>
-                                  {user.name?.charAt(0).toUpperCase()}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          <div className='ml-3'>
-                            <div className='text-sm font-medium text-gray-900'>{user.name}</div>
-                            <div className='text-xs text-gray-500'>
-                              {user.about ? (user.about.length > 20 ? user.about.substring(0, 20) + '...' : user.about) : 'Available'}
+                  (() => {
+                    // Group users by joined date
+                    const groupedByDate = users.reduce((acc: { [key: string]: any[] }, user) => {
+                      const dateKey = new Date(user.createdAt).toLocaleDateString('en-GB', { 
+                        day: '2-digit', 
+                        month: '2-digit', 
+                        year: 'numeric' 
+                      });
+                      if (!acc[dateKey]) {
+                        acc[dateKey] = [];
+                      }
+                      acc[dateKey].push(user);
+                      return acc;
+                    }, {});
+
+                    return Object.entries(groupedByDate).map(([date, dateUsers]) => (
+                      <React.Fragment key={`group-${date}`}>
+                        {/* Date Header Row */}
+                        <tr className='bg-blue-50'>
+                          <td colSpan={7} className='px-4 py-2'>
+                            <div className='flex items-center gap-2'>
+                              <span className='text-sm font-bold text-blue-700'>📅 {date}</span>
+                              <span className='text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full'>
+                                {dateUsers.length} {dateUsers.length === 1 ? 'user' : 'users'}
+                              </span>
                             </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className='px-3 py-3 whitespace-nowrap'>
-                        <div className='text-sm text-gray-900'>{user.phone}</div>
-                      </td>
-                      <td className='px-3 py-3 whitespace-nowrap'>
-                        <div className='text-sm text-gray-500'>
-                          {new Date(user.createdAt).toLocaleDateString('en-US', { 
-                            day: '2-digit', 
-                            month: '2-digit', 
-                            year: '2-digit' 
-                          })}
-                        </div>
-                      </td>
-                      <td className='px-2 py-3 whitespace-nowrap text-center'>
-                        <div className='text-sm text-gray-900'>{user.stats?.cards || 0}</div>
-                      </td>
-                      <td className='px-2 py-3 whitespace-nowrap text-center'>
-                        <div className='text-sm text-gray-900'>{user.stats?.messages || 0}</div>
-                      </td>
-                      <td className='px-2 py-3 whitespace-nowrap text-center'>
-                        <div className='text-sm text-gray-900'>{user.stats?.contacts || 0}</div>
-                      </td>
-                      <td className='px-2 py-3 whitespace-nowrap text-center'>
-                        <div className='text-sm font-semibold text-green-600'>{user.stats?.credits?.toLocaleString() || 0}</div>
-                      </td>
-                      <td className='px-3 py-3 whitespace-nowrap'>
-                        <div className='flex gap-2'>
-                          <button
-                            onClick={() => exportUserContacts(user._id, user.name || user.phone)}
-                            className='flex items-center px-2 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700'
-                            title={`Download ${user.stats?.contacts || 0} contacts`}
-                          >
-                            <Download className='w-3 h-3 mr-1' />
-                            Export
-                          </button>
-                          <button
-                            onClick={() => deleteUser(user._id, user.name || user.phone)}
-                            className='flex items-center px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700'
-                            title='Delete user and all related data'
-                          >
-                            <Trash2 className='w-3 h-3' />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                          </td>
+                        </tr>
+                        {/* Users for this date */}
+                        {dateUsers.map((user: any) => (
+                          <tr key={user._id} className='hover:bg-gray-50'>
+                            <td className='px-4 py-3 whitespace-nowrap'>
+                              <div className='flex items-center'>
+                                <div className='flex-shrink-0 h-10 w-10'>
+                                  {user.profilePicture ? (
+                                    <Image className='h-10 w-10 rounded-full' src={user.profilePicture} alt='' width={40} height={40} />
+                                  ) : (
+                                    <div className='h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center'>
+                                      <span className='text-gray-600 font-medium'>
+                                        {user.name?.charAt(0).toUpperCase()}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className='ml-3'>
+                                  <div className='text-sm font-medium text-gray-900'>{user.name}</div>
+                                  <div className='text-xs text-gray-500'>
+                                    {user.about ? (user.about.length > 20 ? user.about.substring(0, 20) + '...' : user.about) : 'Available'}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className='px-3 py-3 whitespace-nowrap'>
+                              <div className='text-sm text-gray-900'>{user.phone}</div>
+                            </td>
+                            <td className='px-2 py-3 whitespace-nowrap text-center'>
+                              <div className='text-sm text-gray-900'>{user.stats?.cards || 0}</div>
+                            </td>
+                            <td className='px-2 py-3 whitespace-nowrap text-center'>
+                              <div className='text-sm text-gray-900'>{user.stats?.messages || 0}</div>
+                            </td>
+                            <td className='px-2 py-3 whitespace-nowrap text-center'>
+                              <div className='text-sm text-gray-900'>{user.stats?.contacts || 0}</div>
+                            </td>
+                            <td className='px-2 py-3 whitespace-nowrap text-center'>
+                              <div className='text-sm font-semibold text-green-600'>{user.stats?.credits?.toLocaleString() || 0}</div>
+                            </td>
+                            <td className='px-3 py-3 whitespace-nowrap'>
+                              <div className='flex gap-2'>
+                                <button
+                                  onClick={() => exportUserContacts(user._id, user.name || user.phone)}
+                                  className='flex items-center px-2 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700'
+                                  title={`Download ${user.stats?.contacts || 0} contacts`}
+                                >
+                                  <Download className='w-3 h-3 mr-1' />
+                                  Export
+                                </button>
+                                <button
+                                  onClick={() => deleteUser(user._id, user.name || user.phone)}
+                                  className='flex items-center px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700'
+                                  title='Delete user and all related data'
+                                >
+                                  <Trash2 className='w-3 h-3' />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
+                    ));
+                  })()
                 )}
               </tbody>
             </table>

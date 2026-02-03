@@ -394,64 +394,64 @@ function DesignRequestContent() {
             <div className="bg-white rounded-lg shadow p-4 mb-6">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <label className="block text-sm font-semibold text-gray-800 mb-1">Status</label>
                   <select 
                     value={statusFilter} 
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white"
                   >
-                    <option value="">All Status</option>
-                    <option value="pending">Pending</option>
-                    <option value="in-progress">In Progress</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
+                    <option value="" className="text-gray-900">All Status</option>
+                    <option value="pending" className="text-gray-900">Pending</option>
+                    <option value="in-progress" className="text-gray-900">In Progress</option>
+                    <option value="completed" className="text-gray-900">Completed</option>
+                    <option value="cancelled" className="text-gray-900">Cancelled</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Ad Type</label>
+                  <label className="block text-sm font-semibold text-gray-800 mb-1">Ad Type</label>
                   <select 
                     value={adTypeFilter} 
                     onChange={(e) => setAdTypeFilter(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white"
                   >
-                    <option value="">All Types</option>
-                    <option value="image">Image</option>
-                    <option value="video">Video</option>
+                    <option value="" className="text-gray-900">All Types</option>
+                    <option value="image" className="text-gray-900">Image</option>
+                    <option value="video" className="text-gray-900">Video</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Channel Type</label>
+                  <label className="block text-sm font-semibold text-gray-800 mb-1">Channel Type</label>
                   <select 
                     value={channelTypeFilter} 
                     onChange={(e) => setChannelTypeFilter(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white"
                   >
-                    <option value="">All Channels</option>
-                    <option value="withChannel">With Channel</option>
-                    <option value="withoutChannel">Without Channel</option>
+                    <option value="" className="text-gray-900">All Channels</option>
+                    <option value="withChannel" className="text-gray-900">With Channel</option>
+                    <option value="withoutChannel" className="text-gray-900">Without Channel</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                  <label className="block text-sm font-semibold text-gray-800 mb-1">Search</label>
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search by name, phone, business..."
-                    className="w-full border rounded-lg px-3 py-2"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 placeholder-gray-500"
                   />
                 </div>
               </div>
               <div className="flex gap-2 mt-4">
                 <button 
                   onClick={loadDesignRequests}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 font-medium"
                 >
                   <RefreshCw className="w-4 h-4" /> Refresh
                 </button>
                 <button 
                   onClick={clearFilters}
-                  className="px-4 py-2 border rounded-lg hover:bg-gray-50 flex items-center gap-2"
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 flex items-center gap-2 text-gray-800 font-medium"
                 >
                   <X className="w-4 h-4" /> Clear Filters
                 </button>
@@ -533,27 +533,27 @@ function DesignRequestContent() {
                     <div className="p-4 space-y-3">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="flex items-center gap-2">
-                          <User className="w-4 h-4 text-gray-400" />
-                          <span className="font-medium">Name:</span>
-                          <span className="text-gray-600">{request.uploaderName || 'N/A'}</span>
+                          <User className="w-4 h-4 text-gray-600" />
+                          <span className="font-medium text-gray-700">Name:</span>
+                          <span className="text-gray-900">{request.uploaderName || 'N/A'}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Phone className="w-4 h-4 text-gray-400" />
-                          <span className="font-medium">Phone:</span>
-                          <span className="text-gray-600">{request.uploaderPhone || 'N/A'}</span>
+                          <Phone className="w-4 h-4 text-gray-600" />
+                          <span className="font-medium text-gray-700">Phone:</span>
+                          <span className="text-gray-900">{request.uploaderPhone || 'N/A'}</span>
                         </div>
                         {request.businessName && (
                           <div className="flex items-center gap-2">
-                            <Building className="w-4 h-4 text-gray-400" />
-                            <span className="font-medium">Business:</span>
-                            <span className="text-gray-600">{request.businessName}</span>
+                            <Building className="w-4 h-4 text-gray-600" />
+                            <span className="font-medium text-gray-700">Business:</span>
+                            <span className="text-gray-900">{request.businessName}</span>
                           </div>
                         )}
                         {request.email && (
                           <div className="flex items-center gap-2">
-                            <Mail className="w-4 h-4 text-gray-400" />
-                            <span className="font-medium">Email:</span>
-                            <span className="text-gray-600">{request.email}</span>
+                            <Mail className="w-4 h-4 text-gray-600" />
+                            <span className="font-medium text-gray-700">Email:</span>
+                            <span className="text-gray-900">{request.email}</span>
                           </div>
                         )}
                       </div>
@@ -562,8 +562,8 @@ function DesignRequestContent() {
                       {((request.referenceImagesGridFS && request.referenceImagesGridFS.length > 0) ||
                         (request.referenceVideosGridFS && request.referenceVideosGridFS.length > 0)) && (
                         <div className="mt-4">
-                          <p className="font-medium mb-2 flex items-center gap-2">
-                            <ImageIcon className="w-4 h-4 text-gray-400" /> Media Files:
+                          <p className="font-medium text-gray-700 mb-2 flex items-center gap-2">
+                            <ImageIcon className="w-4 h-4 text-gray-600" /> Media Files:
                           </p>
                           <div className="flex flex-wrap gap-2">
                             {request.referenceImagesGridFS?.map((imgId, index) => (
@@ -593,9 +593,9 @@ function DesignRequestContent() {
                         </div>
                       )}
 
-                      <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <Calendar className="w-4 h-4" />
-                        Created: {new Date(request.createdAt).toLocaleString()}
+                      <div className="flex items-center gap-2 text-sm text-gray-700">
+                        <Calendar className="w-4 h-4 text-gray-600" />
+                        <span className="font-medium">Created:</span> {new Date(request.createdAt).toLocaleString()}
                       </div>
                     </div>
                   </div>
@@ -652,50 +652,50 @@ function DesignRequestContent() {
             <div className="bg-white rounded-lg shadow p-4 mb-6">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <label className="block text-sm font-semibold text-gray-800 mb-1">Status</label>
                   <select 
                     value={adsStatusFilter} 
                     onChange={(e) => setAdsStatusFilter(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white"
                   >
-                    <option value="">All Status</option>
-                    <option value="pending">Pending</option>
-                    <option value="approved">Approved</option>
-                    <option value="rejected">Rejected</option>
+                    <option value="" className="text-gray-900">All Status</option>
+                    <option value="pending" className="text-gray-900">Pending</option>
+                    <option value="approved" className="text-gray-900">Approved</option>
+                    <option value="rejected" className="text-gray-900">Rejected</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Ad Type</label>
+                  <label className="block text-sm font-semibold text-gray-800 mb-1">Ad Type</label>
                   <select 
                     value={adsTypeFilter} 
                     onChange={(e) => setAdsTypeFilter(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white"
                   >
-                    <option value="">All Types</option>
-                    <option value="image">Image</option>
-                    <option value="video">Video</option>
+                    <option value="" className="text-gray-900">All Types</option>
+                    <option value="image" className="text-gray-900">Image</option>
+                    <option value="video" className="text-gray-900">Video</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                  <label className="block text-sm font-semibold text-gray-800 mb-1">Search</label>
                   <input
                     type="text"
                     value={adsSearchQuery}
                     onChange={(e) => setAdsSearchQuery(e.target.value)}
                     placeholder="Search by title, phone..."
-                    className="w-full border rounded-lg px-3 py-2"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 placeholder-gray-500"
                   />
                 </div>
                 <div className="flex items-end gap-2">
                   <button 
                     onClick={loadPendingAds}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 font-medium"
                   >
                     <RefreshCw className="w-4 h-4" /> Refresh
                   </button>
                   <button 
                     onClick={clearAdsFilters}
-                    className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 text-gray-800 font-medium"
                   >
                     Clear
                   </button>
@@ -727,7 +727,7 @@ function DesignRequestContent() {
                   <div key={ad.id} className="bg-white rounded-lg shadow p-4">
                     <div className="flex flex-col md:flex-row justify-between">
                       <div className="flex-1">
-                        <h3 className="text-lg font-semibold">{ad.title}</h3>
+                        <h3 className="text-lg font-semibold text-gray-900">{ad.title}</h3>
                         <div className="flex flex-wrap gap-2 mt-2">
                           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadgeColor(ad.status)}`}>
                             {ad.status.toUpperCase()}
@@ -736,7 +736,7 @@ function DesignRequestContent() {
                             {(ad.adType || 'image').toUpperCase()}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-600 mt-2">
+                        <p className="text-sm text-gray-900 mt-2">
                           <Phone className="w-4 h-4 inline mr-1" /> {ad.phoneNumber} | 
                           <User className="w-4 h-4 inline mx-1" /> {ad.uploaderName || 'Unknown'} |
                           <Calendar className="w-4 h-4 inline mx-1" /> {new Date(ad.startDate).toLocaleDateString()} - {new Date(ad.endDate).toLocaleDateString()}

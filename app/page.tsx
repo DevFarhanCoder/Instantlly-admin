@@ -14,7 +14,8 @@ import {
   Trash2,
   LogOut,
   AlertCircle,
-  Gift
+  Gift,
+  Palette
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useRouter } from 'next/navigation';
@@ -293,6 +294,14 @@ function DashboardContent() {
                 <MessageSquare className='w-4 h-4' />
                 <span className='hidden sm:inline'>User Feedback</span>
                 <span className='sm:hidden'>Feedback</span>
+              </button>
+              <button
+                onClick={() => router.push('/design-request')}
+                className='flex items-center gap-2 px-3 sm:px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-lg transition whitespace-nowrap text-sm'
+              >
+                <Palette className='w-4 h-4' />
+                <span className='hidden sm:inline'>Design Request</span>
+                <span className='sm:hidden'>Design</span>
               </button>
               <button
                 onClick={handleLogout}

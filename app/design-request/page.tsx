@@ -41,6 +41,8 @@ interface DesignRequest {
   webLinks?: string[];
   referenceImagesGridFS?: string[];
   referenceVideosGridFS?: string[];
+  referenceImagesS3?: Array<{ url: string; key: string }>;
+  referenceVideosS3?: Array<{ url: string; key: string }>;
   adminNotes?: string;
   createdAt: string;
 }
@@ -104,6 +106,13 @@ function DesignRequestContent() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [approvePriority, setApprovePriority] = useState(5);
   const [rejectionReason, setRejectionReason] = useState('');
+  
+  // Accordion state for design requests
+  const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null);
+  
+  const toggleAccordion = (requestId: string) => {
+    setExpandedRequestId(expandedRequestId === requestId ? null : requestId);
+  };
 
   useEffect(() => {
     loadDesignRequests();
@@ -481,68 +490,108 @@ function DesignRequestContent() {
                 {filteredRequests.map((request) => (
                   <div 
                     key={request._id} 
-                    className={`bg-white rounded-lg shadow overflow-hidden border-l-4 ${
+                    className={`bg-white rounded-lg shadow overflow-hidden border-l-4 transition-all duration-300 ${
                       request.status === 'pending' ? 'border-yellow-500' :
                       request.status === 'in-progress' ? 'border-cyan-500' :
                       request.status === 'completed' ? 'border-green-500' :
                       'border-red-500'
                     }`}
                   >
-                    {/* Card Header */}
-                    <div className="p-4 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                      <div>
-                        <p className="text-sm text-gray-500">Request ID: {request._id}</p>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadgeColor(request.status)}`}>
-                            {request.status.toUpperCase()}
-                          </span>
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            request.adType === 'image' ? 'bg-indigo-100 text-indigo-800' : 'bg-pink-100 text-pink-800'
-                          }`}>
-                            {request.adType === 'image' ? '📷 Image' : '🎬 Video'}
-                          </span>
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            request.channelType === 'withChannel' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {request.channelType === 'withChannel' ? '📺 With Channel' : '🚫 Without Channel'}
-                          </span>
+                    {/* Accordion Header - Always Visible */}
+                    <div 
+                      onClick={() => toggleAccordion(request._id)}
+                      className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex justify-between items-center">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <User className="w-5 h-5 text-gray-600" />
+                              <span className="font-semibold text-gray-900 text-lg">{request.uploaderName || 'N/A'}</span>
+                            </div>
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadgeColor(request.status)}`}>
+                              {request.status.toUpperCase()}
+                            </span>
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              request.adType === 'image' ? 'bg-indigo-100 text-indigo-800' : 'bg-pink-100 text-pink-800'
+                            }`}>
+                              {request.adType === 'image' ? '📷 Image' : '🎬 Video'}
+                            </span>
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              request.channelType === 'withChannel' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {request.channelType === 'withChannel' ? '📺 With Channel' : '🚫 Without Channel'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-2">
+                            <Phone className="w-4 h-4 text-gray-600" />
+                            <span className="text-gray-700">{request.uploaderPhone || 'N/A'}</span>
+                            <span className="text-gray-400 mx-2">•</span>
+                            <Calendar className="w-4 h-4 text-gray-600" />
+                            <span className="text-sm text-gray-600">{new Date(request.createdAt).toLocaleString()}</span>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => { setSelectedRequest(request); setShowDetailsModal(true); }}
-                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 flex items-center gap-1"
-                        >
-                          <Eye className="w-4 h-4" /> View Details
-                        </button>
-                        <button
-                          onClick={() => { 
-                            setSelectedRequest(request); 
-                            setNewStatus(request.status);
-                            setAdminNotes('');
-                            setShowStatusModal(true); 
-                          }}
-                          className="px-3 py-1 bg-cyan-600 text-white text-sm rounded hover:bg-cyan-700 flex items-center gap-1"
-                        >
-                          <Edit className="w-4 h-4" /> Update Status
-                        </button>
+                        <div className="ml-4">
+                          <svg 
+                            className={`w-6 h-6 text-gray-600 transition-transform duration-300 ${
+                              expandedRequestId === request._id ? 'rotate-180' : ''
+                            }`} 
+                            fill="none" 
+                            stroke="currentColor" 
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Card Body */}
-                    <div className="p-4 space-y-3">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div className="flex items-center gap-2">
-                          <User className="w-4 h-4 text-gray-600" />
-                          <span className="font-medium text-gray-700">Name:</span>
-                          <span className="text-gray-900">{request.uploaderName || 'N/A'}</span>
+                    {/* Accordion Body - Expanded Details */}
+                    <div 
+                      className={`overflow-hidden transition-all duration-300 ${
+                        expandedRequestId === request._id ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
+                      }`}
+                    >
+                      <div className="p-4 border-t space-y-4">
+                        <div className="mb-3">
+                          <p className="text-sm text-gray-500">Request ID: {request._id}</p>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Phone className="w-4 h-4 text-gray-600" />
-                          <span className="font-medium text-gray-700">Phone:</span>
-                          <span className="text-gray-900">{request.uploaderPhone || 'N/A'}</span>
+                        
+                        <div className="flex gap-2 mb-4">
+                          <button
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              console.log('🔍 Design Request Data:', {
+                                id: request._id,
+                                gridFSImages: request.referenceImagesGridFS,
+                                gridFSVideos: request.referenceVideosGridFS,
+                                s3Images: request.referenceImagesS3,
+                                s3Videos: request.referenceVideosS3,
+                              });
+                              setSelectedRequest(request); 
+                              setShowDetailsModal(true); 
+                            }}
+                            className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 flex items-center gap-1"
+                          >
+                            <Eye className="w-4 h-4" /> View Details
+                          </button>
+                          <button
+                            onClick={(e) => { 
+                              e.stopPropagation();
+                              setSelectedRequest(request); 
+                              setNewStatus(request.status);
+                              setAdminNotes('');
+                              setShowStatusModal(true); 
+                            }}
+                            className="px-3 py-1 bg-cyan-600 text-white text-sm rounded hover:bg-cyan-700 flex items-center gap-1"
+                          >
+                            <Edit className="w-4 h-4" /> Update Status
+                          </button>
                         </div>
-                        {request.businessName && (
+
+                        <div className="space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {request.businessName && (
                           <div className="flex items-center gap-2">
                             <Building className="w-4 h-4 text-gray-600" />
                             <span className="font-medium text-gray-700">Business:</span>
@@ -556,46 +605,20 @@ function DesignRequestContent() {
                             <span className="text-gray-900">{request.email}</span>
                           </div>
                         )}
-                      </div>
-                      
-                      {/* Media Preview */}
-                      {((request.referenceImagesGridFS && request.referenceImagesGridFS.length > 0) ||
-                        (request.referenceVideosGridFS && request.referenceVideosGridFS.length > 0)) && (
-                        <div className="mt-4">
-                          <p className="font-medium text-gray-700 mb-2 flex items-center gap-2">
-                            <ImageIcon className="w-4 h-4 text-gray-600" /> Media Files:
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {request.referenceImagesGridFS?.map((imgId, index) => (
-                              <div 
-                                key={imgId}
-                                onClick={() => { setMediaUrl(`${API_BASE}/api/channel-partner/ads/image/${imgId}`); setShowImageModal(true); }}
-                                className="w-24 h-24 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition"
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img 
-                                  src={`${API_BASE}/api/channel-partner/ads/image/${imgId}`}
-                                  alt={`Reference ${index + 1}`}
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
-                            ))}
-                            {request.referenceVideosGridFS?.map((vidId) => (
-                              <div 
-                                key={vidId}
-                                onClick={() => { setMediaUrl(`${API_BASE}/api/channel-partner/ads/video/${vidId}`); setShowVideoModal(true); }}
-                                className="w-24 h-24 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition bg-gray-200 flex items-center justify-center relative"
-                              >
-                                <Play className="w-8 h-8 text-gray-600" />
-                              </div>
-                            ))}
+                        {((request.referenceImagesGridFS && request.referenceImagesGridFS.length > 0) ||
+                   (request.referenceVideosGridFS && request.referenceVideosGridFS.length > 0) ||
+                          (request.referenceImagesS3 && request.referenceImagesS3.length > 0) || 
+                          (request.referenceVideosS3 && request.referenceVideosS3.length > 0)) && (
+                          <div className="flex items-center gap-2">
+                            <ImageIcon className="w-4 h-4 text-blue-600" />
+                            <span className="font-medium text-blue-700">
+                              {(request.referenceImagesGridFS?.length || 0) + (request.referenceVideosGridFS?.length || 0) + (request.referenceImagesS3?.length || 0) + (request.referenceVideosS3?.length || 0)} Media File(s)
+                            </span>
+                            <span className="text-xs text-gray-500">(Click View Details to see)</span>
                           </div>
+                        )}
+                      </div>
                         </div>
-                      )}
-
-                      <div className="flex items-center gap-2 text-sm text-gray-700">
-                        <Calendar className="w-4 h-4 text-gray-600" />
-                        <span className="font-medium">Created:</span> {new Date(request.createdAt).toLocaleString()}
                       </div>
                     </div>
                   </div>
@@ -784,30 +807,27 @@ function DesignRequestContent() {
       {showDetailsModal && selectedRequest && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-4 border-b flex justify-between items-center">
-              <h2 className="text-xl font-bold">Design Request Details</h2>
-              <button onClick={() => setShowDetailsModal(false)} className="text-gray-500 hover:text-gray-700">
-                <X className="w-6 h-6" />
-              </button>
+            <div className="p-4 border-b bg-white">
+              <h2 className="text-xl font-bold text-gray-900">Design Request Details</h2>
             </div>
             <div className="p-4 space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <p><strong>ID:</strong> {selectedRequest._id}</p>
-                <p><strong>Status:</strong> <span className={`px-2 py-1 rounded ${getStatusBadgeColor(selectedRequest.status)}`}>{selectedRequest.status}</span></p>
-                <p><strong>Uploader Name:</strong> {selectedRequest.uploaderName || 'N/A'}</p>
-                <p><strong>Phone:</strong> {selectedRequest.uploaderPhone || 'N/A'}</p>
-                <p><strong>Business Name:</strong> {selectedRequest.businessName || 'N/A'}</p>
-                <p><strong>Email:</strong> {selectedRequest.email || 'N/A'}</p>
-                <p><strong>Business Phone:</strong> {selectedRequest.phoneNumber || 'N/A'}</p>
-                <p><strong>Ad Type:</strong> {selectedRequest.adType}</p>
-                <p><strong>Channel Type:</strong> {selectedRequest.channelType}</p>
-                <p><strong>Created:</strong> {new Date(selectedRequest.createdAt).toLocaleString()}</p>
+                <p className="text-gray-900"><strong className="text-gray-700">ID:</strong> {selectedRequest._id}</p>
+                <p className="text-gray-900"><strong className="text-gray-700">Status:</strong> <span className={`px-2 py-1 rounded ${getStatusBadgeColor(selectedRequest.status)}`}>{selectedRequest.status}</span></p>
+                <p className="text-gray-900"><strong className="text-gray-700">Uploader Name:</strong> {selectedRequest.uploaderName || 'N/A'}</p>
+                <p className="text-gray-900"><strong className="text-gray-700">Phone:</strong> {selectedRequest.uploaderPhone || 'N/A'}</p>
+                <p className="text-gray-900"><strong className="text-gray-700">Business Name:</strong> {selectedRequest.businessName || 'N/A'}</p>
+                <p className="text-gray-900"><strong className="text-gray-700">Email:</strong> {selectedRequest.email || 'N/A'}</p>
+                <p className="text-gray-900"><strong className="text-gray-700">Business Phone:</strong> {selectedRequest.phoneNumber || 'N/A'}</p>
+                <p className="text-gray-900"><strong className="text-gray-700">Ad Type:</strong> {selectedRequest.adType}</p>
+                <p className="text-gray-900"><strong className="text-gray-700">Channel Type:</strong> {selectedRequest.channelType}</p>
+                <p className="text-gray-900"><strong className="text-gray-700">Created:</strong> {new Date(selectedRequest.createdAt).toLocaleString()}</p>
               </div>
-              {selectedRequest.adText && <p><strong>Ad Text:</strong> {selectedRequest.adText}</p>}
-              {selectedRequest.businessAddress && <p><strong>Address:</strong> {selectedRequest.businessAddress}</p>}
+              {selectedRequest.adText && <p className="text-gray-900"><strong className="text-gray-700">Ad Text:</strong> {selectedRequest.adText}</p>}
+              {selectedRequest.businessAddress && <p className="text-gray-900"><strong className="text-gray-700">Address:</strong> {selectedRequest.businessAddress}</p>}
               {selectedRequest.webLinks && selectedRequest.webLinks.length > 0 && (
-                <div>
-                  <strong>Web Links:</strong>
+                <div className="text-gray-900">
+                  <strong className="text-gray-700">Web Links:</strong>
                   <ul className="list-disc ml-6">
                     {selectedRequest.webLinks.map((link, i) => (
                       <li key={i}><a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{link}</a></li>
@@ -815,10 +835,79 @@ function DesignRequestContent() {
                   </ul>
                 </div>
               )}
-              {selectedRequest.adminNotes && <p><strong>Admin Notes:</strong> {selectedRequest.adminNotes}</p>}
+              {/* Media Files */}
+              {((selectedRequest.referenceImagesGridFS && selectedRequest.referenceImagesGridFS.length > 0) ||
+                (selectedRequest.referenceVideosGridFS && selectedRequest.referenceVideosGridFS.length > 0) ||
+                (selectedRequest.referenceImagesS3 && selectedRequest.referenceImagesS3.length > 0) ||
+                (selectedRequest.referenceVideosS3 && selectedRequest.referenceVideosS3.length > 0)) && (
+                <div className="mt-4">
+                  <p className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <ImageIcon className="w-5 h-5 text-gray-700" /> Media Files:
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    {/* GridFS Images */}
+                    {selectedRequest.referenceImagesGridFS?.map((imgId, index) => (
+                      <div 
+                        key={imgId}
+                        onClick={(e) => { e.stopPropagation(); setMediaUrl(`${API_BASE}/api/channel-partner/ads/image/${imgId}`); setShowImageModal(true); }}
+                        className="w-32 h-32 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition border-2 border-gray-200 hover:border-blue-500"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img 
+                          src={`${API_BASE}/api/channel-partner/ads/image/${imgId}`}
+                          alt={`Reference ${index + 1}`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            console.error('❌ Failed to load GridFS image:', imgId);
+                            e.currentTarget.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23f3f4f6" width="100" height="100"/><text x="50" y="50" text-anchor="middle" dy=".3em" fill="%239ca3af" font-family="sans-serif" font-size="12">Image Not Found</text></svg>';
+                          }}
+                        />
+                      </div>
+                    ))}
+                    {/* S3 Images */}
+                    {selectedRequest.referenceImagesS3?.map((img, index) => (
+                      <div 
+                        key={img.key}
+                        onClick={(e) => { e.stopPropagation(); setMediaUrl(img.url); setShowImageModal(true); }}
+                        className="w-32 h-32 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition border-2 border-gray-200 hover:border-blue-500"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img 
+                          src={img.url}
+                          alt={`S3 Reference ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ))}
+                    {/* GridFS Videos */}
+                    {selectedRequest.referenceVideosGridFS?.map((vidId) => (
+                      <div 
+                        key={vidId}
+                        onClick={(e) => { e.stopPropagation(); setMediaUrl(`${API_BASE}/api/channel-partner/ads/video/${vidId}`); setShowVideoModal(true); }}
+                        className="w-32 h-32 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition bg-gray-800 flex items-center justify-center relative border-2 border-gray-200 hover:border-blue-500"
+                      >
+                        <Play className="w-12 h-12 text-white" />
+                        <span className="absolute bottom-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">Video</span>
+                      </div>
+                    ))}
+                    {/* S3 Videos */}
+                    {selectedRequest.referenceVideosS3?.map((vid, index) => (
+                      <div 
+                        key={vid.key}
+                        onClick={(e) => { e.stopPropagation(); setMediaUrl(vid.url); setShowVideoModal(true); }}
+                        className="w-32 h-32 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition bg-gray-800 flex items-center justify-center relative border-2 border-gray-200 hover:border-blue-500"
+                      >
+                        <Play className="w-12 h-12 text-white" />
+                        <span className="absolute bottom-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">S3 Video</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {selectedRequest.adminNotes && <p className="text-gray-900"><strong className="text-gray-700">Admin Notes:</strong> {selectedRequest.adminNotes}</p>}
             </div>
-            <div className="p-4 border-t flex justify-end">
-              <button onClick={() => setShowDetailsModal(false)} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Close</button>
+            <div className="p-4 border-t flex justify-end bg-gray-50">
+              <button onClick={() => setShowDetailsModal(false)} className="px-6 py-2.5 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-800 shadow-md transition-colors">Close</button>
             </div>
           </div>
         </div>
@@ -828,10 +917,14 @@ function DesignRequestContent() {
       {showStatusModal && selectedRequest && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-md w-full">
-            <div className="p-4 border-b flex justify-between items-center">
-              <h2 className="text-xl font-bold">Update Status</h2>
-              <button onClick={() => setShowStatusModal(false)} className="text-gray-500 hover:text-gray-700">
-                <X className="w-6 h-6" />
+            <div className="p-4 border-b flex justify-between items-center bg-white">
+              <h2 className="text-xl font-bold text-gray-900">Update Status</h2>
+              <button 
+                onClick={() => setShowStatusModal(false)} 
+                className="text-white bg-gray-700 hover:bg-red-600 border-2 border-gray-800 p-2 rounded-lg transition-all duration-200 flex items-center justify-center shadow-lg"
+                aria-label="Close"
+              >
+                <X className="w-6 h-6 font-bold" />
               </button>
             </div>
             <div className="p-4 space-y-4">
@@ -840,7 +933,7 @@ function DesignRequestContent() {
                 <select 
                   value={newStatus} 
                   onChange={(e) => setNewStatus(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2"
+                  className="w-full border rounded-lg px-3 py-2 text-gray-900"
                 >
                   <option value="pending">Pending</option>
                   <option value="in-progress">In Progress</option>
@@ -854,13 +947,13 @@ function DesignRequestContent() {
                   value={adminNotes}
                   onChange={(e) => setAdminNotes(e.target.value)}
                   placeholder="Add notes about this update..."
-                  className="w-full border rounded-lg px-3 py-2 h-32"
+                  className="w-full border rounded-lg px-3 py-2 h-32 text-gray-900"
                 />
               </div>
             </div>
-            <div className="p-4 border-t flex justify-end gap-2">
-              <button onClick={() => setShowStatusModal(false)} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Cancel</button>
-              <button onClick={updateRequestStatus} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Update Status</button>
+            <div className="p-4 border-t flex justify-end gap-2 bg-gray-50">
+              <button onClick={() => setShowStatusModal(false)} className="px-6 py-2.5 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 shadow-md transition-colors">Cancel</button>
+              <button onClick={updateRequestStatus} className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 shadow-md transition-colors">Update Status</button>
             </div>
           </div>
         </div>
@@ -889,8 +982,12 @@ function DesignRequestContent() {
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <CheckCircle className="w-5 h-5" /> Approve Advertisement
               </h2>
-              <button onClick={() => setShowApproveModal(false)} className="text-white hover:text-gray-200">
-                <X className="w-6 h-6" />
+              <button 
+                onClick={() => setShowApproveModal(false)} 
+                className="text-white bg-gray-800 hover:bg-red-600 border-2 border-white p-2 rounded-lg transition-all duration-200 flex items-center justify-center shadow-lg"
+                aria-label="Close"
+              >
+                <X className="w-6 h-6 font-bold" />
               </button>
             </div>
             <div className="p-4 space-y-4">
@@ -905,19 +1002,19 @@ function DesignRequestContent() {
                   max="10"
                   value={approvePriority}
                   onChange={(e) => setApprovePriority(parseInt(e.target.value))}
-                  className="w-full border rounded-lg px-3 py-2"
+                  className="w-full border rounded-lg px-3 py-2 text-gray-900"
                 />
                 <p className="text-sm text-gray-500 mt-1">Higher priority ads are shown more frequently</p>
               </div>
-              <div className="p-3 bg-gray-50 rounded">
-                <p><strong>Title:</strong> {selectedAd.title}</p>
-                <p><strong>Phone:</strong> {selectedAd.phoneNumber}</p>
-                <p><strong>Type:</strong> {selectedAd.adType || 'image'}</p>
+              <div className="p-3 bg-gray-50 rounded text-gray-900">
+                <p><strong className="text-gray-700">Title:</strong> {selectedAd.title}</p>
+                <p><strong className="text-gray-700">Phone:</strong> {selectedAd.phoneNumber}</p>
+                <p><strong className="text-gray-700">Type:</strong> {selectedAd.adType || 'image'}</p>
               </div>
             </div>
-            <div className="p-4 border-t flex justify-end gap-2">
-              <button onClick={() => setShowApproveModal(false)} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Cancel</button>
-              <button onClick={approveAd} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Approve & Publish</button>
+            <div className="p-4 border-t flex justify-end gap-2 bg-gray-50">
+              <button onClick={() => setShowApproveModal(false)} className="px-6 py-2.5 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 shadow-md transition-colors">Cancel</button>
+              <button onClick={approveAd} className="px-6 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 shadow-md transition-colors">Approve & Publish</button>
             </div>
           </div>
         </div>
@@ -931,8 +1028,12 @@ function DesignRequestContent() {
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <XCircle className="w-5 h-5" /> Reject Advertisement
               </h2>
-              <button onClick={() => setShowRejectModal(false)} className="text-white hover:text-gray-200">
-                <X className="w-6 h-6" />
+              <button 
+                onClick={() => setShowRejectModal(false)} 
+                className="text-white bg-gray-800 hover:bg-white hover:text-red-600 border-2 border-white hover:border-red-600 p-2 rounded-lg transition-all duration-200 flex items-center justify-center shadow-lg"
+                aria-label="Close"
+              >
+                <X className="w-6 h-6 font-bold" />
               </button>
             </div>
             <div className="p-4 space-y-4">
@@ -945,19 +1046,19 @@ function DesignRequestContent() {
                   value={rejectionReason}
                   onChange={(e) => setRejectionReason(e.target.value)}
                   placeholder="Explain why this ad is being rejected..."
-                  className="w-full border rounded-lg px-3 py-2 h-32"
+                  className="w-full border rounded-lg px-3 py-2 h-32 text-gray-900"
                   required
                 />
                 <p className="text-sm text-gray-500 mt-1">This message will be shown to the user</p>
               </div>
-              <div className="p-3 bg-gray-50 rounded">
-                <p><strong>Title:</strong> {selectedAd.title}</p>
-                <p><strong>Phone:</strong> {selectedAd.phoneNumber}</p>
+              <div className="p-3 bg-gray-50 rounded text-gray-900">
+                <p><strong className="text-gray-700">Title:</strong> {selectedAd.title}</p>
+                <p><strong className="text-gray-700">Phone:</strong> {selectedAd.phoneNumber}</p>
               </div>
             </div>
-            <div className="p-4 border-t flex justify-end gap-2">
-              <button onClick={() => setShowRejectModal(false)} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Cancel</button>
-              <button onClick={rejectAd} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Reject Ad</button>
+            <div className="p-4 border-t flex justify-end gap-2 bg-gray-50">
+              <button onClick={() => setShowRejectModal(false)} className="px-6 py-2.5 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 shadow-md transition-colors">Cancel</button>
+              <button onClick={rejectAd} className="px-6 py-2.5 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 shadow-md transition-colors">Reject Ad</button>
             </div>
           </div>
         </div>
@@ -967,25 +1068,29 @@ function DesignRequestContent() {
       {showAdDetailsModal && selectedAd && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-4 border-b flex justify-between items-center">
-              <h2 className="text-xl font-bold">Advertisement Details</h2>
-              <button onClick={() => setShowAdDetailsModal(false)} className="text-gray-500 hover:text-gray-700">
-                <X className="w-6 h-6" />
+            <div className="p-4 border-b flex justify-between items-center bg-white">
+              <h2 className="text-xl font-bold text-gray-900">Advertisement Details</h2>
+              <button 
+                onClick={() => setShowAdDetailsModal(false)} 
+                className="text-white bg-gray-700 hover:bg-red-600 border-2 border-gray-800 p-2 rounded-lg transition-all duration-200 flex items-center justify-center shadow-lg"
+                aria-label="Close"
+              >
+                <X className="w-6 h-6 font-bold" />
               </button>
             </div>
             <div className="p-4">
               <div className="grid grid-cols-2 gap-4 mb-4">
-                <p><strong>Title:</strong> {selectedAd.title}</p>
-                <p><strong>Phone Number:</strong> {selectedAd.phoneNumber}</p>
-                <p><strong>Uploader:</strong> {selectedAd.uploaderName || 'Unknown'}</p>
-                <p><strong>Status:</strong> <span className={`px-2 py-1 rounded ${getStatusBadgeColor(selectedAd.status)}`}>{selectedAd.status}</span></p>
-                <p><strong>Ad Type:</strong> {selectedAd.adType || 'image'}</p>
-                <p><strong>Priority:</strong> {selectedAd.priority || 1}</p>
-                <p><strong>Start Date:</strong> {new Date(selectedAd.startDate).toLocaleString()}</p>
-                <p><strong>End Date:</strong> {new Date(selectedAd.endDate).toLocaleString()}</p>
-                <p><strong>Created:</strong> {new Date(selectedAd.createdAt).toLocaleString()}</p>
-                {selectedAd.approvedBy && <p><strong>Approved By:</strong> {selectedAd.approvedBy}</p>}
-                {selectedAd.rejectionReason && <p className="col-span-2"><strong>Rejection Reason:</strong> {selectedAd.rejectionReason}</p>}
+                <p className="text-gray-900"><strong className="text-gray-700">Title:</strong> {selectedAd.title}</p>
+                <p className="text-gray-900"><strong className="text-gray-700">Phone Number:</strong> {selectedAd.phoneNumber}</p>
+                <p className="text-gray-900"><strong className="text-gray-700">Uploader:</strong> {selectedAd.uploaderName || 'Unknown'}</p>
+                <p className="text-gray-900"><strong className="text-gray-700">Status:</strong> <span className={`px-2 py-1 rounded ${getStatusBadgeColor(selectedAd.status)}`}>{selectedAd.status}</span></p>
+                <p className="text-gray-900"><strong className="text-gray-700">Ad Type:</strong> {selectedAd.adType || 'image'}</p>
+                <p className="text-gray-900"><strong className="text-gray-700">Priority:</strong> {selectedAd.priority || 1}</p>
+                <p className="text-gray-900"><strong className="text-gray-700">Start Date:</strong> {new Date(selectedAd.startDate).toLocaleString()}</p>
+                <p className="text-gray-900"><strong className="text-gray-700">End Date:</strong> {new Date(selectedAd.endDate).toLocaleString()}</p>
+                <p className="text-gray-900"><strong className="text-gray-700">Created:</strong> {new Date(selectedAd.createdAt).toLocaleString()}</p>
+                {selectedAd.approvedBy && <p className="text-gray-900"><strong className="text-gray-700">Approved By:</strong> {selectedAd.approvedBy}</p>}
+                {selectedAd.rejectionReason && <p className="col-span-2 text-gray-900"><strong className="text-gray-700">Rejection Reason:</strong> {selectedAd.rejectionReason}</p>}
               </div>
               <hr className="my-4" />
               {/* Media */}
@@ -993,7 +1098,7 @@ function DesignRequestContent() {
                 <div className="space-y-4">
                   {selectedAd.bottomVideoId && (
                     <div>
-                      <h6 className="font-medium mb-2">Bottom Banner Video:</h6>
+                      <h6 className="font-medium mb-2 text-gray-900">Bottom Banner Video:</h6>
                       <video controls className="max-w-full">
                         <source src={`${API_BASE}/api/channel-partner/ads/video/${selectedAd.bottomVideoId}`} type="video/mp4" />
                       </video>
@@ -1001,7 +1106,7 @@ function DesignRequestContent() {
                   )}
                   {selectedAd.fullscreenVideoId && (
                     <div>
-                      <h6 className="font-medium mb-2">Fullscreen Video:</h6>
+                      <h6 className="font-medium mb-2 text-gray-900">Fullscreen Video:</h6>
                       <video controls className="max-w-full">
                         <source src={`${API_BASE}/api/channel-partner/ads/video/${selectedAd.fullscreenVideoId}`} type="video/mp4" />
                       </video>
@@ -1012,14 +1117,14 @@ function DesignRequestContent() {
                 <div className="space-y-4">
                   {selectedAd.bottomImageId && (
                     <div>
-                      <h6 className="font-medium mb-2">Bottom Banner Image:</h6>
+                      <h6 className="font-medium mb-2 text-gray-900">Bottom Banner Image:</h6>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={`${API_BASE}/api/channel-partner/ads/image/${selectedAd.bottomImageId}`} alt="Bottom Banner" className="max-w-full" />
                     </div>
                   )}
                   {selectedAd.fullscreenImageId && (
                     <div>
-                      <h6 className="font-medium mb-2">Fullscreen Image:</h6>
+                      <h6 className="font-medium mb-2 text-gray-900">Fullscreen Image:</h6>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={`${API_BASE}/api/channel-partner/ads/image/${selectedAd.fullscreenImageId}`} alt="Fullscreen" className="max-w-full" />
                     </div>
@@ -1027,8 +1132,8 @@ function DesignRequestContent() {
                 </div>
               )}
             </div>
-            <div className="p-4 border-t flex justify-end">
-              <button onClick={() => setShowAdDetailsModal(false)} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Close</button>
+            <div className="p-4 border-t flex justify-end bg-gray-50">
+              <button onClick={() => setShowAdDetailsModal(false)} className="px-6 py-2.5 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-800 shadow-md transition-colors">Close</button>
             </div>
           </div>
         </div>

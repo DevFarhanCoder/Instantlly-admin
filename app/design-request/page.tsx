@@ -173,6 +173,8 @@ function DesignRequestContent() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareRequest, setShareRequest] = useState<DesignRequest | null>(null);
   const [assigningDesigner, setAssigningDesigner] = useState(false);
+  const [selectedDesignerId, setSelectedDesignerId] = useState<string | null>(null);
+  const [selectedDesignerName, setSelectedDesignerName] = useState<string>('');
 
   // Received Designs State
   const [receivedDesigns, setReceivedDesigns] = useState<ReceivedDesign[]>([]);
@@ -1284,6 +1286,29 @@ function DesignRequestContent() {
                             <strong>Designer Notes:</strong> {design.designerNotes}
                           </div>
                         )}
+
+                        {/* User Approval Status Badge */}
+                        {(design.status === 'sent-to-user' || design.status === 'user-approved' || design.status === 'user-rejected' || design.status === 'changes-requested') && (
+                          <div className="mt-2">
+                            <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${
+                              design.status === 'user-approved' ? 'bg-green-100 text-green-800 border border-green-300' :
+                              (design.status === 'user-rejected' || design.status === 'changes-requested') ? 'bg-red-100 text-red-800 border border-red-300' :
+                              'bg-blue-100 text-blue-800 border border-blue-300'
+                            }`}>
+                              {design.status === 'user-approved' ? '✅ Approved by User' :
+                               (design.status === 'user-rejected' || design.status === 'changes-requested') ? '🔄 Changes Requested by User' :
+                               '📨 Sent to User (Awaiting Response)'}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* User Feedback Message */}
+                        {design.userFeedback && (
+                          <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm">
+                            <strong className="text-red-700 flex items-center gap-1">💬 User Feedback:</strong>
+                            <p className="text-red-600 mt-1">{design.userFeedback}</p>
+                          </div>
+                        )}
                       </div>
                       <div className="flex flex-col gap-2 mt-4 md:mt-0 md:ml-4">
                         <button
@@ -1473,7 +1498,7 @@ function DesignRequestContent() {
                 <h3 className="text-lg font-bold text-gray-900">Share to Designer</h3>
                 <p className="text-sm text-gray-500 mt-1">Select a designer to assign this request</p>
               </div>
-              <button onClick={() => { setShowShareModal(false); setShareRequest(null); }} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => { setShowShareModal(false); setShareRequest(null); setSelectedDesignerId(null); setSelectedDesignerName(''); }} className="text-gray-400 hover:text-gray-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1511,37 +1536,16 @@ function DesignRequestContent() {
                     <button
                       key={designer.id}
                       disabled={assigningDesigner}
-                      onClick={async () => {
-                        setAssigningDesigner(true);
-                        try {
-                          const response = await fetch(
-                            `${API_BASE}/api/channel-partner/ads/design-requests/${shareRequest._id}/assign`,
-                            {
-                              method: 'PUT',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ designerId: designer.id, designerName: designer.username }),
-                            }
-                          );
-                          if (response.ok) {
-                            alert(`Request shared with ${designer.username} successfully!`);
-                            setShowShareModal(false);
-                            setShareRequest(null);
-                            loadDesignRequests();
-                          } else {
-                            const errData = await response.json().catch(() => ({}));
-                            alert(errData.message || 'Failed to assign designer');
-                          }
-                        } catch (err) {
-                          console.error('Failed to assign designer:', err);
-                          alert('Failed to assign designer. Please try again.');
-                        } finally {
-                          setAssigningDesigner(false);
-                        }
+                      onClick={() => {
+                        setSelectedDesignerId(designer.id);
+                        setSelectedDesignerName(designer.username);
                       }}
                       className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-left ${
-                        shareRequest.assignedDesignerId === designer.id
-                          ? 'border-green-400 bg-green-50 ring-2 ring-green-200'
-                          : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50'
+                        selectedDesignerId === designer.id
+                          ? 'border-purple-500 bg-purple-50 ring-2 ring-purple-300'
+                          : shareRequest.assignedDesignerId === designer.id
+                            ? 'border-green-400 bg-green-50 ring-2 ring-green-200'
+                            : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50'
                       } ${assigningDesigner ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
@@ -1551,25 +1555,68 @@ function DesignRequestContent() {
                         <p className="font-medium text-gray-900">{designer.username}</p>
                         {designer.name && <p className="text-sm text-gray-500">{designer.name}</p>}
                       </div>
-                      {shareRequest.assignedDesignerId === designer.id && (
+                      {selectedDesignerId === designer.id && (
+                        <CheckCircle className="w-5 h-5 text-purple-500" />
+                      )}
+                      {shareRequest.assignedDesignerId === designer.id && selectedDesignerId !== designer.id && (
                         <CheckCircle className="w-5 h-5 text-green-500" />
                       )}
-                      {assigningDesigner && shareRequest.assignedDesignerId !== designer.id && (
-                        <Loader2 className="w-5 h-5 text-purple-500 animate-spin" />
-                      )}
-                      <Send className="w-4 h-4 text-gray-400" />
                     </button>
                   ))}
                 </div>
               )}
             </div>
 
-            <div className="p-4 border-t bg-gray-50">
+            <div className="p-4 border-t bg-gray-50 flex gap-3">
               <button
-                onClick={() => { setShowShareModal(false); setShareRequest(null); }}
-                className="w-full px-4 py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition-colors"
+                onClick={() => { setShowShareModal(false); setShareRequest(null); setSelectedDesignerId(null); setSelectedDesignerName(''); }}
+                className="flex-1 px-4 py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition-colors"
               >
                 Close
+              </button>
+              <button
+                disabled={!selectedDesignerId || assigningDesigner}
+                onClick={async () => {
+                  if (!selectedDesignerId || !shareRequest) return;
+                  setAssigningDesigner(true);
+                  try {
+                    const response = await fetch(
+                      `${API_BASE}/api/channel-partner/ads/design-requests/${shareRequest._id}/assign`,
+                      {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ designerId: selectedDesignerId, designerName: selectedDesignerName }),
+                      }
+                    );
+                    if (response.ok) {
+                      alert(`Request shared with ${selectedDesignerName} successfully!`);
+                      setShowShareModal(false);
+                      setShareRequest(null);
+                      setSelectedDesignerId(null);
+                      setSelectedDesignerName('');
+                      loadDesignRequests();
+                    } else {
+                      const errData = await response.json().catch(() => ({}));
+                      alert(errData.message || 'Failed to assign designer');
+                    }
+                  } catch (err) {
+                    console.error('Failed to assign designer:', err);
+                    alert('Failed to assign designer. Please try again.');
+                  } finally {
+                    setAssigningDesigner(false);
+                  }
+                }}
+                className={`flex-1 px-4 py-2 font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                  selectedDesignerId && !assigningDesigner
+                    ? 'bg-purple-600 text-white hover:bg-purple-700'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                {assigningDesigner ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Submitting...</>
+                ) : (
+                  <><Send className="w-4 h-4" /> Submit</>
+                )}
               </button>
             </div>
           </div>

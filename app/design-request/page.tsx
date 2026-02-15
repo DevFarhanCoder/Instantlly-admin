@@ -20,7 +20,17 @@ import {
   User,
   ArrowLeft,
   Play,
-  XCircle
+  XCircle,
+  Key,
+  Send,
+  UserPlus,
+  Trash2,
+  Lock,
+  Inbox,
+  Upload,
+  Download,
+  FileImage,
+  EyeOff
 } from 'lucide-react';
 import AuthGuard from '../components/AuthGuard';
 
@@ -44,6 +54,9 @@ interface DesignRequest {
   referenceImagesS3?: Array<{ url: string; key: string }>;
   referenceVideosS3?: Array<{ url: string; key: string }>;
   adminNotes?: string;
+  assignedDesignerId?: string;
+  assignedDesignerName?: string;
+  assignedAt?: string;
   createdAt: string;
 }
 
@@ -64,12 +77,50 @@ interface Ad {
   fullscreenImageId?: string;
   bottomVideoId?: string;
   fullscreenVideoId?: string;
+  // S3/CloudFront URLs (preferred over GridFS)
+  bottomImageS3Url?: string;
+  fullscreenImageS3Url?: string;
+  bottomVideoS3Url?: string;
+  fullscreenVideoS3Url?: string;
+  hasBottomImage?: boolean;
+  hasFullscreenImage?: boolean;
+  hasBottomVideo?: boolean;
+  hasFullscreenVideo?: boolean;
   approvedBy?: string;
+}
+
+interface Designer {
+  id: string;
+  username: string;
+  name: string;
+  email?: string;
+  status: 'active' | 'inactive';
+  createdAt: string;
+  assignedRequests: number;
+  completedRequests: number;
+}
+
+interface ReceivedDesign {
+  id: string;
+  designRequestId: string;
+  designerName: string;
+  designerId: string;
+  uploaderName: string;
+  uploaderPhone: string;
+  businessName?: string;
+  adType: 'image' | 'video';
+  status: 'new' | 'reviewed' | 'sent-to-user' | 'user-approved' | 'user-rejected' | 'changes-requested';
+  designFiles: Array<{ url: string; type: 'image' | 'video'; name: string }>;
+  designerNotes?: string;
+  adminFeedback?: string;
+  userFeedback?: string;
+  uploadedAt: string;
+  sentToUserAt?: string;
 }
 
 function DesignRequestContent() {
   const router = useRouter();
-  const [currentTab, setCurrentTab] = useState<'design-requests' | 'ads-pending'>('design-requests');
+  const [currentTab, setCurrentTab] = useState<'design-requests' | 'ads-pending' | 'designer-passwords' | 'received-designs'>('design-requests');
   const [loading, setLoading] = useState(false);
   
   // Design Requests State
@@ -109,6 +160,28 @@ function DesignRequestContent() {
   
   // Accordion state for design requests
   const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null);
+
+  // Designer Password State
+  const [designers, setDesigners] = useState<Designer[]>([]);
+  const [designerUsername, setDesignerUsername] = useState('');
+  const [designerPassword, setDesignerPassword] = useState('');
+  const [designerName, setDesignerName] = useState('');
+  const [designerEmail, setDesignerEmail] = useState('');
+  const [showDesignerPassword, setShowDesignerPassword] = useState(false);
+
+  // Share to Designer State
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareRequest, setShareRequest] = useState<DesignRequest | null>(null);
+  const [assigningDesigner, setAssigningDesigner] = useState(false);
+
+  // Received Designs State
+  const [receivedDesigns, setReceivedDesigns] = useState<ReceivedDesign[]>([]);
+  const [receivedDesignsFilter, setReceivedDesignsFilter] = useState('');
+  const [receivedDesignsSearch, setReceivedDesignsSearch] = useState('');
+  const [selectedDesign, setSelectedDesign] = useState<ReceivedDesign | null>(null);
+  const [showDesignPreviewModal, setShowDesignPreviewModal] = useState(false);
+  const [showSendToUserModal, setShowSendToUserModal] = useState(false);
+  const [sendToUserMessage, setSendToUserMessage] = useState('');
   
   const toggleAccordion = (requestId: string) => {
     setExpandedRequestId(expandedRequestId === requestId ? null : requestId);
@@ -131,7 +204,11 @@ function DesignRequestContent() {
   const loadDesignRequests = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/api/channel-partner/ads/design-requests/all`);
+      const url = `${API_BASE}/api/channel-partner/ads/design-requests/all`;
+      console.log('🔍 DEBUG API_BASE:', API_BASE);
+      console.log('🔍 DEBUG Full URL:', url);
+      const response = await fetch(url);
+      console.log('🔍 DEBUG Response status:', response.status);
       if (!response.ok) throw new Error('Failed to fetch design requests');
       const data = await response.json();
       setAllRequests(data.designRequests || []);
@@ -202,12 +279,137 @@ function DesignRequestContent() {
     setAdsSearchQuery('');
   };
 
-  const handleTabChange = (tab: 'design-requests' | 'ads-pending') => {
+  const handleTabChange = (tab: 'design-requests' | 'ads-pending' | 'designer-passwords' | 'received-designs') => {
     setCurrentTab(tab);
     if (tab === 'ads-pending') {
       loadPendingAds();
+    } else if (tab === 'designer-passwords') {
+      loadDesigners();
+    } else if (tab === 'received-designs') {
+      loadReceivedDesigns();
     } else {
       loadDesignRequests();
+    }
+  };
+
+  // Designer management functions
+  const loadDesigners = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/designers`);
+      if (response.ok) {
+        const data = await response.json();
+        setDesigners(data.designers || []);
+      }
+    } catch (error) {
+      console.error('Error loading designers:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createDesigner = async () => {
+    if (!designerUsername || !designerPassword) {
+      alert('Please fill in username and password');
+      return;
+    }
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/designers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: designerUsername,
+          password: designerPassword
+        })
+      });
+      if (response.ok) {
+        alert('Designer account created successfully!');
+        setDesignerUsername('');
+        setDesignerPassword('');
+        loadDesigners();
+      } else {
+        const data = await response.json();
+        alert(data.message || 'Failed to create designer');
+      }
+    } catch (error) {
+      console.error('Error creating designer:', error);
+      alert('Failed to create designer account');
+    }
+  };
+
+  const generateRandomPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
+    let password = '';
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setDesignerPassword(password);
+    setShowDesignerPassword(true);
+  };
+
+  // Received designs functions
+  const loadReceivedDesigns = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/received-designs`);
+      if (response.ok) {
+        const data = await response.json();
+        setReceivedDesigns(data.designs || []);
+      }
+    } catch (error) {
+      console.error('Error loading received designs:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendDesignToUser = async () => {
+    if (!selectedDesign) return;
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/received-designs/${selectedDesign.id}/send-to-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: sendToUserMessage })
+      });
+      if (response.ok) {
+        alert('Design sent to user for approval!');
+        setShowSendToUserModal(false);
+        setSendToUserMessage('');
+        loadReceivedDesigns();
+      } else {
+        alert('Failed to send design to user');
+      }
+    } catch (error) {
+      console.error('Error sending design to user:', error);
+      alert('Failed to send design to user');
+    }
+  };
+
+  const filteredReceivedDesigns = receivedDesigns.filter(design => {
+    const matchesFilter = !receivedDesignsFilter || design.status === receivedDesignsFilter;
+    const matchesSearch = !receivedDesignsSearch ||
+      design.designerName.toLowerCase().includes(receivedDesignsSearch.toLowerCase()) ||
+      design.uploaderName.toLowerCase().includes(receivedDesignsSearch.toLowerCase()) ||
+      design.businessName?.toLowerCase().includes(receivedDesignsSearch.toLowerCase());
+    return matchesFilter && matchesSearch;
+  });
+
+  const receivedDesignsStats = {
+    total: receivedDesigns.length,
+    new: receivedDesigns.filter(d => d.status === 'new').length,
+    sentToUser: receivedDesigns.filter(d => d.status === 'sent-to-user').length,
+    changesRequested: receivedDesigns.filter(d => d.status === 'changes-requested').length,
+  };
+
+  const getDesignStatusColor = (status: string) => {
+    switch (status) {
+      case 'new': return 'bg-blue-100 text-blue-800';
+      case 'reviewed': return 'bg-purple-100 text-purple-800';
+      case 'sent-to-user': return 'bg-green-100 text-green-800';
+      case 'user-approved': return 'bg-emerald-100 text-emerald-800';
+      case 'user-rejected': return 'bg-red-100 text-red-800';
+      case 'changes-requested': return 'bg-orange-100 text-orange-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
@@ -318,16 +520,23 @@ function DesignRequestContent() {
               <div>
                 <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                   <Palette className="w-6 h-6 text-pink-600" />
-                  {currentTab === 'design-requests' ? 'Design Requests Dashboard' : 'Ads Pending Approval'}
+                  {currentTab === 'design-requests' ? 'Design Requests Dashboard' : 
+                   currentTab === 'ads-pending' ? 'Ads Pending Approval' :
+                   currentTab === 'designer-passwords' ? 'Designer Management' :
+                   'Received Designs'}
                 </h1>
                 <p className="text-sm text-gray-600 mt-1">
                   {currentTab === 'design-requests' 
                     ? 'Manage ad design requests submitted by users from mobile app'
-                    : 'Review and approve/reject ads submitted by users'}
+                    : currentTab === 'ads-pending'
+                    ? 'Review and approve/reject ads submitted by users'
+                    : currentTab === 'designer-passwords'
+                    ? 'Create and manage designer login credentials'
+                    : 'Review designs uploaded by designers and send to users for approval'}
                 </p>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <button
                 onClick={() => handleTabChange('design-requests')}
                 className={`px-4 py-2 rounded-lg font-medium transition ${
@@ -349,6 +558,28 @@ function DesignRequestContent() {
               >
                 <ImageIcon className="w-4 h-4 inline mr-2" />
                 Ads - Pending
+              </button>
+              <button
+                onClick={() => handleTabChange('designer-passwords')}
+                className={`px-4 py-2 rounded-lg font-medium transition ${
+                  currentTab === 'designer-passwords' 
+                    ? 'bg-purple-600 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                <Key className="w-4 h-4 inline mr-2" />
+                Designer Passwords
+              </button>
+              <button
+                onClick={() => handleTabChange('received-designs')}
+                className={`px-4 py-2 rounded-lg font-medium transition ${
+                  currentTab === 'received-designs' 
+                    ? 'bg-indigo-600 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                <Inbox className="w-4 h-4 inline mr-2" />
+                Received Designs
               </button>
             </div>
           </div>
@@ -587,6 +818,24 @@ function DesignRequestContent() {
                           >
                             <Edit className="w-4 h-4" /> Update Status
                           </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShareRequest(request);
+                              setShowShareModal(true);
+                              if (designers.length === 0) loadDesigners();
+                            }}
+                            className={`px-3 py-1 text-white text-sm rounded flex items-center gap-1 ${
+                              request.assignedDesignerName
+                                ? 'bg-green-600 hover:bg-green-700'
+                                : 'bg-purple-600 hover:bg-purple-700'
+                            }`}
+                          >
+                            <Send className="w-4 h-4" />
+                            {request.assignedDesignerName
+                              ? `Shared: ${request.assignedDesignerName}`
+                              : 'Share to Designer'}
+                          </button>
                         </div>
 
                         <div className="space-y-3">
@@ -801,6 +1050,262 @@ function DesignRequestContent() {
             )}
           </>
         )}
+
+        {/* Designer Passwords Tab */}
+        {currentTab === 'designer-passwords' && (
+          <>
+            {/* Create Designer Form */}
+            <div className="bg-white rounded-lg shadow p-6 mb-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-purple-600" />
+                Create Designer Account
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-800 mb-1">Username *</label>
+                  <input
+                    type="text"
+                    value={designerUsername}
+                    onChange={(e) => setDesignerUsername(e.target.value)}
+                    placeholder="e.g., designer_john"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 placeholder-gray-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-800 mb-1">Password *</label>
+                  <div className="relative">
+                    <input
+                      type={showDesignerPassword ? 'text' : 'password'}
+                      value={designerPassword}
+                      onChange={(e) => setDesignerPassword(e.target.value)}
+                      placeholder="Enter password"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 text-gray-900 placeholder-gray-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowDesignerPassword(!showDesignerPassword)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    >
+                      {showDesignerPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 flex gap-2">
+                <button
+                  onClick={createDesigner}
+                  disabled={!designerUsername || !designerPassword}
+                  className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 font-medium"
+                >
+                  <UserPlus className="w-4 h-4" /> Create Designer
+                </button>
+              </div>
+            </div>
+
+            {/* Designers List */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="p-4 border-b flex justify-between items-center">
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <User className="w-5 h-5 text-gray-600" />
+                  Registered Designers ({designers.length})
+                </h3>
+                <button
+                  onClick={loadDesigners}
+                  className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 flex items-center gap-1"
+                >
+                  <RefreshCw className="w-4 h-4" /> Refresh
+                </button>
+              </div>
+
+              {loading && (
+                <div className="text-center py-12">
+                  <Loader2 className="w-12 h-12 animate-spin text-purple-600 mx-auto" />
+                  <p className="mt-4 text-gray-600">Loading designers...</p>
+                </div>
+              )}
+
+              {!loading && designers.length === 0 && (
+                <div className="text-center py-12">
+                  <Key className="w-16 h-16 text-gray-300 mx-auto" />
+                  <h3 className="mt-4 text-lg font-medium text-gray-900">No Designers Yet</h3>
+                  <p className="text-gray-600">Create a designer account above to get started.</p>
+                </div>
+              )}
+
+              {!loading && designers.length > 0 && (
+                <div className="divide-y">
+                  {designers.map((designer) => (
+                    <div key={designer.id} className="p-4 hover:bg-gray-50 flex flex-col md:flex-row justify-between md:items-center gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <User className="w-5 h-5 text-purple-600" />
+                          <span className="font-semibold text-gray-900">{designer.name || designer.username}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            designer.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          }`}>
+                            {designer.status}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-4 mt-1 text-sm text-gray-600 flex-wrap">
+                          <span className="flex items-center gap-1"><Lock className="w-3 h-3" /> {designer.username}</span>
+                          {designer.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {designer.email}</span>}
+                          <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> Created: {new Date(designer.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <div className="mt-1 text-sm text-gray-500">
+                          Assigned: {designer.assignedRequests} requests | Completed: {designer.completedRequests}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => alert(`Reset password for ${designer.username}`)}
+                          className="px-3 py-1 bg-yellow-500 text-white text-sm rounded hover:bg-yellow-600 flex items-center gap-1"
+                        >
+                          <Key className="w-4 h-4" /> Reset Password
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (confirm(`Are you sure you want to delete designer "${designer.username}"?`)) {
+                              try {
+                                const response = await fetch(`${API_BASE}/api/admin/designers/${designer.id || designer._id}`, {
+                                  method: 'DELETE',
+                                });
+                                if (response.ok) {
+                                  alert(`Designer ${designer.username} deleted successfully!`);
+                                  loadDesigners();
+                                } else {
+                                  const data = await response.json().catch(() => ({}));
+                                  alert(data.message || 'Failed to delete designer');
+                                }
+                              } catch (err) {
+                                console.error('Error deleting designer:', err);
+                                alert('Failed to delete designer. Please try again.');
+                              }
+                            }
+                          }}
+                          className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 flex items-center gap-1"
+                        >
+                          <Trash2 className="w-4 h-4" /> Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Received Designs Tab */}
+        {currentTab === 'received-designs' && (
+          <>
+            {/* Search & Refresh */}
+            <div className="bg-white rounded-lg shadow p-4 mb-6">
+              <div className="flex flex-col md:flex-row gap-4 items-end">
+                <div className="flex-1">
+                  <label className="block text-sm font-semibold text-gray-800 mb-1">Search</label>
+                  <input
+                    type="text"
+                    value={receivedDesignsSearch}
+                    onChange={(e) => setReceivedDesignsSearch(e.target.value)}
+                    placeholder="Search by designer, user, business..."
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 placeholder-gray-500"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={loadReceivedDesigns}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 font-medium"
+                  >
+                    <RefreshCw className="w-4 h-4" /> Refresh
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Loading State */}
+            {loading && (
+              <div className="text-center py-12">
+                <Loader2 className="w-12 h-12 animate-spin text-indigo-600 mx-auto" />
+                <p className="mt-4 text-gray-600">Loading received designs...</p>
+              </div>
+            )}
+
+            {/* Empty State */}
+            {!loading && filteredReceivedDesigns.length === 0 && (
+              <div className="text-center py-12 bg-white rounded-lg shadow">
+                <Inbox className="w-16 h-16 text-gray-300 mx-auto" />
+                <h3 className="mt-4 text-lg font-medium text-gray-900">No Designs Received</h3>
+                <p className="text-gray-600">Designs uploaded by designers will appear here for review.</p>
+              </div>
+            )}
+
+            {/* Designs List */}
+            {!loading && filteredReceivedDesigns.length > 0 && (
+              <div className="space-y-4">
+                {filteredReceivedDesigns.map((design) => (
+                  <div key={design.id} className="bg-white rounded-lg shadow p-4 border-l-4 border-indigo-400">
+                    <div className="flex flex-col md:flex-row justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 flex-wrap mb-2">
+                          <span className="font-semibold text-gray-900 text-lg flex items-center gap-1">
+                            <FileImage className="w-5 h-5 text-indigo-600" />
+                            Design from {design.designerName}
+                          </span>
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            design.adType === 'image' ? 'bg-indigo-100 text-indigo-800' : 'bg-pink-100 text-pink-800'
+                          }`}>
+                            {design.adType === 'image' ? '📷 Image' : '🎬 Video'}
+                          </span>
+                        </div>
+                        <div className="text-sm text-gray-700 space-y-1">
+                          <p className="flex items-center gap-1">
+                            <User className="w-4 h-4 text-gray-500" />
+                            <span className="font-medium">For User:</span> {design.uploaderName} ({design.uploaderPhone})
+                          </p>
+                          {design.businessName && (
+                            <p className="flex items-center gap-1">
+                              <Building className="w-4 h-4 text-gray-500" />
+                              <span className="font-medium">Business:</span> {design.businessName}
+                            </p>
+                          )}
+                          <p className="flex items-center gap-1">
+                            <Calendar className="w-4 h-4 text-gray-500" />
+                            <span className="font-medium">Uploaded:</span> {new Date(design.uploadedAt).toLocaleString()}
+                          </p>
+                          {design.designFiles.length > 0 && (
+                            <p className="flex items-center gap-1">
+                              <ImageIcon className="w-4 h-4 text-blue-600" />
+                              <span className="font-medium text-blue-700">{design.designFiles.length} Design File(s)</span>
+                            </p>
+                          )}
+                        </div>
+                        {design.designerNotes && (
+                          <div className="mt-2 p-2 bg-blue-50 rounded text-sm text-blue-700">
+                            <strong>Designer Notes:</strong> {design.designerNotes}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-2 mt-4 md:mt-0 md:ml-4">
+                        <button
+                          onClick={() => { setSelectedDesign(design); setShowDesignPreviewModal(true); }}
+                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 flex items-center gap-1"
+                        >
+                          <Eye className="w-4 h-4" /> Preview
+                        </button>
+                        <button
+                          onClick={() => { setSelectedDesign(design); setSendToUserMessage(''); setShowSendToUserModal(true); }}
+                          className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 flex items-center gap-1"
+                        >
+                          <Send className="w-4 h-4" /> Send to User
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </main>
 
       {/* Details Modal */}
@@ -959,6 +1464,118 @@ function DesignRequestContent() {
         </div>
       )}
 
+      {/* Share to Designer Modal */}
+      {showShareModal && shareRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col">
+            <div className="p-4 border-b flex justify-between items-center">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Share to Designer</h3>
+                <p className="text-sm text-gray-500 mt-1">Select a designer to assign this request</p>
+              </div>
+              <button onClick={() => { setShowShareModal(false); setShareRequest(null); }} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Request info summary */}
+            <div className="px-4 py-3 bg-gray-50 border-b">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-medium text-gray-700">Request:</span>
+                <span className="text-gray-600">{shareRequest.businessName || shareRequest.uploaderName || 'Unnamed'}</span>
+                <span className={`ml-auto px-2 py-0.5 rounded-full text-xs font-medium ${
+                  shareRequest.adType === 'image' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                }`}>
+                  {shareRequest.adType}
+                </span>
+              </div>
+              {shareRequest.assignedDesignerName && (
+                <div className="flex items-center gap-2 text-sm mt-2">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  <span className="text-green-700">Currently assigned to: <strong>{shareRequest.assignedDesignerName}</strong></span>
+                </div>
+              )}
+            </div>
+
+            {/* Designer list */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {designers.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <UserPlus className="w-10 h-10 mx-auto mb-2 text-gray-300" />
+                  <p>No designers found</p>
+                  <p className="text-sm">Add designers in the Designer Passwords tab</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {designers.map((designer) => (
+                    <button
+                      key={designer.id}
+                      disabled={assigningDesigner}
+                      onClick={async () => {
+                        setAssigningDesigner(true);
+                        try {
+                          const response = await fetch(
+                            `${API_BASE}/api/channel-partner/ads/design-requests/${shareRequest._id}/assign`,
+                            {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ designerId: designer.id, designerName: designer.username }),
+                            }
+                          );
+                          if (response.ok) {
+                            alert(`Request shared with ${designer.username} successfully!`);
+                            setShowShareModal(false);
+                            setShareRequest(null);
+                            loadDesignRequests();
+                          } else {
+                            const errData = await response.json().catch(() => ({}));
+                            alert(errData.message || 'Failed to assign designer');
+                          }
+                        } catch (err) {
+                          console.error('Failed to assign designer:', err);
+                          alert('Failed to assign designer. Please try again.');
+                        } finally {
+                          setAssigningDesigner(false);
+                        }
+                      }}
+                      className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-left ${
+                        shareRequest.assignedDesignerId === designer.id
+                          ? 'border-green-400 bg-green-50 ring-2 ring-green-200'
+                          : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50'
+                      } ${assigningDesigner ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+                        <User className="w-5 h-5 text-purple-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{designer.username}</p>
+                        {designer.name && <p className="text-sm text-gray-500">{designer.name}</p>}
+                      </div>
+                      {shareRequest.assignedDesignerId === designer.id && (
+                        <CheckCircle className="w-5 h-5 text-green-500" />
+                      )}
+                      {assigningDesigner && shareRequest.assignedDesignerId !== designer.id && (
+                        <Loader2 className="w-5 h-5 text-purple-500 animate-spin" />
+                      )}
+                      <Send className="w-4 h-4 text-gray-400" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t bg-gray-50">
+              <button
+                onClick={() => { setShowShareModal(false); setShareRequest(null); }}
+                className="w-full px-4 py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Image Modal */}
       {showImageModal && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" onClick={() => setShowImageModal(false)}>
@@ -1096,37 +1713,37 @@ function DesignRequestContent() {
               {/* Media */}
               {selectedAd.adType === 'video' ? (
                 <div className="space-y-4">
-                  {selectedAd.bottomVideoId && (
+                  {(selectedAd.bottomVideoS3Url || selectedAd.bottomVideoId) && (
                     <div>
                       <h6 className="font-medium mb-2 text-gray-900">Bottom Banner Video:</h6>
                       <video controls className="max-w-full">
-                        <source src={`${API_BASE}/api/channel-partner/ads/video/${selectedAd.bottomVideoId}`} type="video/mp4" />
+                        <source src={selectedAd.bottomVideoS3Url || (selectedAd.bottomVideoId ? `${API_BASE}/api/channel-partner/ads/image/${selectedAd.bottomVideoId}` : "")} type="video/mp4" />
                       </video>
                     </div>
                   )}
-                  {selectedAd.fullscreenVideoId && (
+                  {(selectedAd.fullscreenVideoS3Url || selectedAd.fullscreenVideoId) && (
                     <div>
                       <h6 className="font-medium mb-2 text-gray-900">Fullscreen Video:</h6>
                       <video controls className="max-w-full">
-                        <source src={`${API_BASE}/api/channel-partner/ads/video/${selectedAd.fullscreenVideoId}`} type="video/mp4" />
+                        <source src={selectedAd.fullscreenVideoS3Url || (selectedAd.fullscreenVideoId ? `${API_BASE}/api/channel-partner/ads/image/${selectedAd.fullscreenVideoId}` : "")} type="video/mp4" />
                       </video>
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {selectedAd.bottomImageId && (
+                  {(selectedAd.bottomImageS3Url || selectedAd.hasBottomImage) && (
                     <div>
                       <h6 className="font-medium mb-2 text-gray-900">Bottom Banner Image:</h6>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={`${API_BASE}/api/channel-partner/ads/image/${selectedAd.bottomImageId}`} alt="Bottom Banner" className="max-w-full" />
+                      <img src={selectedAd.bottomImageS3Url || (selectedAd.bottomImageId ? `${API_BASE}/api/channel-partner/ads/image/${selectedAd.bottomImageId}` : "")} alt="Bottom Banner" className="max-w-full" />
                     </div>
                   )}
-                  {selectedAd.fullscreenImageId && (
+                  {(selectedAd.fullscreenImageS3Url || selectedAd.hasFullscreenImage) && (
                     <div>
                       <h6 className="font-medium mb-2 text-gray-900">Fullscreen Image:</h6>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={`${API_BASE}/api/channel-partner/ads/image/${selectedAd.fullscreenImageId}`} alt="Fullscreen" className="max-w-full" />
+                      <img src={selectedAd.fullscreenImageS3Url || (selectedAd.fullscreenImageId ? `${API_BASE}/api/channel-partner/ads/image/${selectedAd.fullscreenImageId}` : "")} alt="Fullscreen" className="max-w-full" />
                     </div>
                   )}
                 </div>
@@ -1134,6 +1751,141 @@ function DesignRequestContent() {
             </div>
             <div className="p-4 border-t flex justify-end bg-gray-50">
               <button onClick={() => setShowAdDetailsModal(false)} className="px-6 py-2.5 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-800 shadow-md transition-colors">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Design Preview Modal */}
+      {showDesignPreviewModal && selectedDesign && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-4 border-b bg-indigo-600 text-white rounded-t-lg flex justify-between items-center">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <FileImage className="w-5 h-5" /> Design Preview
+              </h2>
+              <button
+                onClick={() => setShowDesignPreviewModal(false)}
+                className="text-white bg-gray-800 hover:bg-red-600 border-2 border-white p-2 rounded-lg transition-all duration-200 flex items-center justify-center shadow-lg"
+                aria-label="Close"
+              >
+                <X className="w-6 h-6 font-bold" />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <p className="text-gray-900"><strong className="text-gray-700">Designer:</strong> {selectedDesign.designerName}</p>
+                <p className="text-gray-900"><strong className="text-gray-700">Status:</strong> <span className={`px-2 py-1 rounded ${getDesignStatusColor(selectedDesign.status)}`}>{selectedDesign.status.replace(/-/g, ' ')}</span></p>
+                <p className="text-gray-900"><strong className="text-gray-700">For User:</strong> {selectedDesign.uploaderName}</p>
+                <p className="text-gray-900"><strong className="text-gray-700">Phone:</strong> {selectedDesign.uploaderPhone}</p>
+                {selectedDesign.businessName && <p className="text-gray-900"><strong className="text-gray-700">Business:</strong> {selectedDesign.businessName}</p>}
+                <p className="text-gray-900"><strong className="text-gray-700">Ad Type:</strong> {selectedDesign.adType}</p>
+                <p className="text-gray-900"><strong className="text-gray-700">Uploaded:</strong> {new Date(selectedDesign.uploadedAt).toLocaleString()}</p>
+                {selectedDesign.sentToUserAt && <p className="text-gray-900"><strong className="text-gray-700">Sent to user:</strong> {new Date(selectedDesign.sentToUserAt).toLocaleString()}</p>}
+              </div>
+              {selectedDesign.designerNotes && (
+                <div className="p-3 bg-blue-50 rounded text-blue-700">
+                  <strong>Designer Notes:</strong> {selectedDesign.designerNotes}
+                </div>
+              )}
+              {selectedDesign.adminFeedback && (
+                <div className="p-3 bg-purple-50 rounded text-purple-700">
+                  <strong>Admin Feedback:</strong> {selectedDesign.adminFeedback}
+                </div>
+              )}
+              {selectedDesign.userFeedback && (
+                <div className="p-3 bg-orange-50 rounded text-orange-700">
+                  <strong>User Feedback:</strong> {selectedDesign.userFeedback}
+                </div>
+              )}
+              {/* Design Files */}
+              {selectedDesign.designFiles.length > 0 && (
+                <div>
+                  <p className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <ImageIcon className="w-5 h-5 text-gray-700" /> Design Files ({selectedDesign.designFiles.length}):
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    {selectedDesign.designFiles.map((file, index) => (
+                      <div key={index} className="border-2 border-gray-200 rounded-lg overflow-hidden">
+                        {file.type === 'image' ? (
+                          <div
+                            onClick={() => { setMediaUrl(file.url); setShowImageModal(true); }}
+                            className="w-48 h-48 cursor-pointer hover:opacity-80 transition"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={file.url} alt={file.name} className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <div
+                            onClick={() => { setMediaUrl(file.url); setShowVideoModal(true); }}
+                            className="w-48 h-48 bg-gray-800 flex items-center justify-center cursor-pointer hover:opacity-80 transition relative"
+                          >
+                            <Play className="w-12 h-12 text-white" />
+                            <span className="absolute bottom-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">Video</span>
+                          </div>
+                        )}
+                        <p className="p-2 text-xs text-gray-600 text-center truncate">{file.name}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t flex justify-end gap-2 bg-gray-50">
+              {(selectedDesign.status === 'new' || selectedDesign.status === 'reviewed' || selectedDesign.status === 'changes-requested') && (
+                <button
+                  onClick={() => { setShowDesignPreviewModal(false); setSendToUserMessage(''); setShowSendToUserModal(true); }}
+                  className="px-6 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 shadow-md transition-colors flex items-center gap-2"
+                >
+                  <Send className="w-4 h-4" /> Send to User
+                </button>
+              )}
+              <button onClick={() => setShowDesignPreviewModal(false)} className="px-6 py-2.5 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-800 shadow-md transition-colors">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Send Design to User Modal */}
+      {showSendToUserModal && selectedDesign && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-4 border-b bg-green-600 text-white rounded-t-lg flex justify-between items-center">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Send className="w-5 h-5" /> Send Design to User
+              </h2>
+              <button
+                onClick={() => setShowSendToUserModal(false)}
+                className="text-white bg-gray-800 hover:bg-red-600 border-2 border-white p-2 rounded-lg transition-all duration-200 flex items-center justify-center shadow-lg"
+                aria-label="Close"
+              >
+                <X className="w-6 h-6 font-bold" />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="p-3 bg-blue-50 rounded text-blue-700 text-sm">
+                ℹ️ This will send the design to <strong>{selectedDesign.uploaderName}</strong> ({selectedDesign.uploaderPhone}) for their approval. They can approve or request changes from the mobile app.
+              </div>
+              <div className="p-3 bg-gray-50 rounded text-gray-900">
+                <p><strong className="text-gray-700">Designer:</strong> {selectedDesign.designerName}</p>
+                <p><strong className="text-gray-700">Design Files:</strong> {selectedDesign.designFiles.length} file(s)</p>
+                <p><strong className="text-gray-700">Ad Type:</strong> {selectedDesign.adType}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Message to User (Optional)</label>
+                <textarea
+                  value={sendToUserMessage}
+                  onChange={(e) => setSendToUserMessage(e.target.value)}
+                  placeholder="Add a message for the user about this design..."
+                  className="w-full border rounded-lg px-3 py-2 h-24 text-gray-900"
+                />
+              </div>
+            </div>
+            <div className="p-4 border-t flex justify-end gap-2 bg-gray-50">
+              <button onClick={() => setShowSendToUserModal(false)} className="px-6 py-2.5 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 shadow-md transition-colors">Cancel</button>
+              <button onClick={sendDesignToUser} className="px-6 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 shadow-md transition-colors flex items-center gap-2">
+                <Send className="w-4 h-4" /> Send for Approval
+              </button>
             </div>
           </div>
         </div>

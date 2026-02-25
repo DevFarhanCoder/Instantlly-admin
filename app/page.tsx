@@ -15,7 +15,8 @@ import {
   LogOut,
   AlertCircle,
   Gift,
-  Palette
+  Palette,
+  FolderPlus
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useRouter } from 'next/navigation';
@@ -302,6 +303,14 @@ function DashboardContent() {
                 <Palette className='w-4 h-4' />
                 <span className='hidden sm:inline'>Design Request</span>
                 <span className='sm:hidden'>Design</span>
+              </button>
+              <button
+                onClick={() => router.push('/custom-categories')}
+                className='flex items-center gap-2 px-3 sm:px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition whitespace-nowrap text-sm'
+              >
+                <FolderPlus className='w-4 h-4' />
+                <span className='hidden sm:inline'>Custom Categories</span>
+                <span className='sm:hidden'>Categories</span>
               </button>
               <button
                 onClick={handleLogout}

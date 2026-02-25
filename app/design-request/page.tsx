@@ -33,8 +33,7 @@ import {
   EyeOff
 } from 'lucide-react';
 import AuthGuard from '../components/AuthGuard';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://api.instantllycards.com';
+import { API_BASE } from '../lib/api';
 
 interface DesignRequest {
   _id: string;
@@ -438,9 +437,13 @@ function DesignRequestContent() {
     if (!confirm('Are you sure you want to approve this ad? This will deduct 1200 credits from the user.')) return;
     
     try {
+      const token = sessionStorage.getItem('adminToken');
       const response = await fetch(`${API_BASE}/api/admin/ads/${selectedAd.id}/approve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({ priority: approvePriority })
       });
       const data = await response.json();
@@ -462,9 +465,13 @@ function DesignRequestContent() {
     if (!confirm('Are you sure you want to reject this ad? All images/videos will be deleted.')) return;
     
     try {
+      const token = sessionStorage.getItem('adminToken');
       const response = await fetch(`${API_BASE}/api/admin/ads/${selectedAd.id}/reject`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({ reason: rejectionReason })
       });
       const data = await response.json();
@@ -661,18 +668,7 @@ function DesignRequestContent() {
                     <option value="video" className="text-gray-900">Video</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-800 mb-1">Channel Type</label>
-                  <select 
-                    value={channelTypeFilter} 
-                    onChange={(e) => setChannelTypeFilter(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white"
-                  >
-                    <option value="" className="text-gray-900">All Channels</option>
-                    <option value="withChannel" className="text-gray-900">With Channel</option>
-                    <option value="withoutChannel" className="text-gray-900">Without Channel</option>
-                  </select>
-                </div>
+
                 <div>
                   <label className="block text-sm font-semibold text-gray-800 mb-1">Search</label>
                   <input
@@ -750,11 +746,7 @@ function DesignRequestContent() {
                             }`}>
                               {request.adType === 'image' ? '📷 Image' : '🎬 Video'}
                             </span>
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                              request.channelType === 'withChannel' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                            }`}>
-                              {request.channelType === 'withChannel' ? '📺 With Channel' : '🚫 Without Channel'}
-                            </span>
+
                           </div>
                           <div className="flex items-center gap-2 mt-2">
                             <Phone className="w-4 h-4 text-gray-600" />

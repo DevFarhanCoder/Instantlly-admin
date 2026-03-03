@@ -570,7 +570,12 @@ function UserManagementContent() {
                               <p className="text-xs text-gray-500">{u.phone}</p>
                             </div>
                           </div>
-                          <div className="text-right text-xs text-gray-500">
+                          <div className="text-right text-xs text-gray-500 flex flex-col items-end gap-1">
+                            {u.isVoucherAdmin && (
+                              <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs rounded-full font-medium border border-yellow-200">
+                                Voucher Admin
+                              </span>
+                            )}
                             <p>{(u.credits || 0).toLocaleString()} credits</p>
                             <p>{u.voucherBalance || 0} vouchers</p>
                           </div>

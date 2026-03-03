@@ -31,6 +31,7 @@ interface FormData {
   description: string;
   expiryDate: string;
   isPublished: boolean;
+  minVouchersRequired: string;
 }
 
 function EditVoucherContent() {
@@ -52,6 +53,7 @@ function EditVoucherContent() {
     description: "",
     expiryDate: "",
     isPublished: false,
+    minVouchersRequired: "5",
   });
 
   useEffect(() => {
@@ -89,6 +91,7 @@ function EditVoucherContent() {
           ? new Date(voucher.expiryDate).toISOString().split("T")[0]
           : "",
         isPublished: voucher.isPublished || false,
+        minVouchersRequired: voucher.minVouchersRequired?.toString() || "5",
       });
     } catch (error: any) {
       console.error("Error fetching voucher:", error);
@@ -143,6 +146,9 @@ function EditVoucherContent() {
           ? new Date(formData.expiryDate).toISOString()
           : undefined,
         isPublished: formData.isPublished,
+        minVouchersRequired: formData.minVouchersRequired
+          ? parseInt(formData.minVouchersRequired)
+          : 5,
       };
 
       const response = await api.put(
@@ -296,7 +302,7 @@ function EditVoucherContent() {
                     name="amount"
                     value={formData.amount}
                     onChange={handleChange}
-                    placeholder="1200"
+                    placeholder="100"
                     min="0"
                     step="0.01"
                     required
@@ -316,7 +322,7 @@ function EditVoucherContent() {
                     name="discountPercentage"
                     value={formData.discountPercentage}
                     onChange={handleChange}
-                    placeholder="40"
+                    placeholder="70"
                     min="0"
                     max="100"
                     step="0.1"
@@ -395,6 +401,35 @@ function EditVoucherContent() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Credit Unlock Rules */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">
+              Credit Unlock Rules
+            </h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Set how many vouchers a user must collect before MLM credits are
+              unlocked.
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Minimum Vouchers Required to Unlock Credits
+              </label>
+              <input
+                type="number"
+                name="minVouchersRequired"
+                min="1"
+                value={formData.minVouchersRequired}
+                onChange={handleChange}
+                placeholder="e.g. 120"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Example: 120 means user needs 120 vouchers. Credits are
+                auto-refunded within 1&nbsp;hour if not met.
+              </p>
             </div>
           </div>
 

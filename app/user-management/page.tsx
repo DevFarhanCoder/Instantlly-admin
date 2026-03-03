@@ -182,14 +182,28 @@ function UserManagementContent() {
     }
   };
 
-  const fetchVoucherStats = async (userId: string, voucherId?: string) => {
+  const fetchVoucherStats = async (
+    userId: string,
+    voucherId?: string,
+    applyToInputs?: "search" | "self",
+  ) => {
     setLoadingVoucherStats(true);
     try {
       const url = voucherId
         ? `/api/admin/users/${userId}/voucher-stats?voucherId=${voucherId}`
         : `/api/admin/users/${userId}/voucher-stats`;
       const res = await api.get(url);
-      if (res.success) setVoucherStats(res.stats);
+      if (res.success) {
+        const stats = res.stats as VoucherStats;
+        setVoucherStats(stats);
+        if (applyToInputs === "search") {
+          setNewCredits((stats.availableCredits / 1e7).toFixed(2));
+          setNewVouchers(String(stats.voucherBalance));
+        } else if (applyToInputs === "self") {
+          setSelfCredits((stats.availableCredits / 1e7).toFixed(2));
+          setSelfVouchers(String(stats.voucherBalance));
+        }
+      }
     } catch {
       setVoucherStats(null);
     } finally {
@@ -213,7 +227,7 @@ function UserManagementContent() {
     setVoucherReason("");
     setSearchResults([]);
     setVoucherStats(null);
-    fetchVoucherStats(u._id, selectedVoucher?._id);
+    fetchVoucherStats(u._id, selectedVoucher?._id, "search");
   };
 
   const handleUpdateCredits = async () => {
@@ -223,10 +237,16 @@ function UserManagementContent() {
     try {
       const res = await api.put(
         `/api/admin/users/${selectedUser._id}/update-credits`,
-        { credits: parseInt(newCredits), reason: creditReason },
+        {
+          credits: Math.round(parseFloat(newCredits) * 1e7),
+          reason: creditReason,
+        },
       );
       if (res.success) {
-        setSelectedUser({ ...selectedUser, credits: parseInt(newCredits) });
+        setSelectedUser({
+          ...selectedUser,
+          credits: Math.round(parseFloat(newCredits) * 1e7),
+        });
         setMessage({
           type: "success",
           text: res.message || "Credits updated successfully",
@@ -284,6 +304,7 @@ function UserManagementContent() {
         setSelfUser(res.user);
         setSelfCredits(String(res.user.credits || 0));
         setSelfVouchers(String(res.user.voucherBalance || 0));
+        fetchVoucherStats(res.user._id, selectedVoucher?._id, "self");
       } else {
         setSelfMessage({
           type: "error",
@@ -306,9 +327,9 @@ function UserManagementContent() {
     setSelfMessage(null);
     try {
       await Promise.all([
-        parseInt(selfCredits) !== selfUser.credits
+        Math.round(parseFloat(selfCredits) * 1e7) !== selfUser.credits
           ? api.put(`/api/admin/users/${selfUser._id}/update-credits`, {
-              credits: parseInt(selfCredits),
+              credits: Math.round(parseFloat(selfCredits) * 1e7),
               reason: selfCreditsReason || "Admin self-update",
             })
           : Promise.resolve({ success: true }),
@@ -321,7 +342,7 @@ function UserManagementContent() {
       ]);
       setSelfUser({
         ...selfUser,
-        credits: parseInt(selfCredits),
+        credits: Math.round(parseFloat(selfCredits) * 1e7),
         voucherBalance: parseInt(selfVouchers),
       });
       setSelfMessage({
@@ -618,28 +639,6 @@ function UserManagementContent() {
                           ×
                         </button>
                       </div>
-                      <div className="grid grid-cols-2 gap-4 mt-4">
-                        <div className="bg-white/10 rounded-lg p-3">
-                          <p className="text-blue-100 text-xs mb-1">
-                            {creditLabel}
-                          </p>
-                          <p className="font-bold text-xl">
-                            {selectedUser.credits.toLocaleString()}
-                          </p>
-                        </div>
-                        <div className="bg-white/10 rounded-lg p-3">
-                          <p className="text-blue-100 text-xs mb-1">
-                            {voucherLabel}
-                          </p>
-                          <p className="font-bold text-xl">
-                            {selectedUser.voucherBalance}
-                          </p>
-                          <p className="text-blue-200 text-xs mt-0.5">
-                            Min needed: {selectedVoucher.minVouchersRequired}
-                          </p>
-                        </div>
-                      </div>
-
                       {/* Voucher MLM Stats */}
                       {loadingVoucherStats ? (
                         <div className="mt-3 flex items-center gap-2 text-blue-200 text-xs">
@@ -647,7 +646,7 @@ function UserManagementContent() {
                           Loading MLM stats…
                         </div>
                       ) : voucherStats ? (
-                        <div className="mt-3 grid grid-cols-3 gap-2">
+                        <div className="mt-3 grid grid-cols-2 gap-2">
                           <div className="bg-white/10 rounded-lg p-2 text-center">
                             <p className="text-blue-100 text-xs">
                               Available Credits
@@ -668,6 +667,14 @@ function UserManagementContent() {
                           </div>
                           <div className="bg-white/10 rounded-lg p-2 text-center">
                             <p className="text-blue-100 text-xs">
+                              Available Vouchers
+                            </p>
+                            <p className="font-bold text-sm">
+                              {voucherStats.voucherBalance.toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="bg-white/10 rounded-lg p-2 text-center">
+                            <p className="text-blue-100 text-xs">
                               Network Users
                             </p>
                             <p className="font-bold text-sm">
@@ -682,29 +689,39 @@ function UserManagementContent() {
                     <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
                       <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
                         <CreditCard size={17} className="text-green-600" />
-                        Update {creditLabel}
+                        Update Available Credits
                       </h3>
                       <div className="space-y-3">
-                        <input
-                          type="number"
-                          min="0"
-                          value={newCredits}
-                          onChange={(e) => setNewCredits(e.target.value)}
-                          className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-green-500"
-                          placeholder="Enter new credits value"
-                        />
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={newCredits}
+                            onChange={(e) => setNewCredits(e.target.value)}
+                            className="w-full px-4 py-2.5 pr-12 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-green-500"
+                            placeholder="e.g. 79101.55"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-medium">
+                            Cr
+                          </span>
+                        </div>
                         <div className="flex gap-2 flex-wrap">
                           {creditQuickAdds.map((q) => (
                             <button
                               key={q}
                               onClick={() =>
                                 setNewCredits(
-                                  String((selectedUser.credits || 0) + q),
+                                  String(
+                                    ((parseFloat(newCredits) || 0) + q).toFixed(
+                                      2,
+                                    ),
+                                  ),
                                 )
                               }
                               className="px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 text-xs font-medium rounded-lg border border-green-200 transition-colors"
                             >
-                              +{q.toLocaleString()}
+                              +{q.toLocaleString()}Cr
                             </button>
                           ))}
                         </div>
@@ -734,7 +751,7 @@ function UserManagementContent() {
                     <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
                       <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
                         <Gift size={17} className="text-orange-500" />
-                        Update {voucherLabel}
+                        Update Available Vouchers
                         <span className="ml-auto text-xs text-gray-400 font-normal">
                           Min required: {selectedVoucher.minVouchersRequired}
                         </span>
@@ -865,18 +882,20 @@ function UserManagementContent() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="bg-white/10 rounded-lg p-3">
                           <p className="text-purple-100 text-xs mb-1">
-                            {creditLabel}
+                            Available Credits
                           </p>
                           <p className="font-bold text-xl">
-                            {selfUser.credits.toLocaleString()}
+                            {voucherStats
+                              ? `${(voucherStats.availableCredits / 1e7).toFixed(2)}Cr`
+                              : `${(selfUser.credits / 1e7).toFixed(2)}Cr`}
                           </p>
                         </div>
                         <div className="bg-white/10 rounded-lg p-3">
                           <p className="text-purple-100 text-xs mb-1">
-                            {voucherLabel}
+                            Available Vouchers
                           </p>
                           <p className="font-bold text-xl">
-                            {selfUser.voucherBalance}
+                            {selfUser.voucherBalance.toLocaleString()}
                           </p>
                           <p className="text-purple-200 text-xs mt-0.5">
                             Min: {selectedVoucher.minVouchersRequired}
@@ -892,27 +911,37 @@ function UserManagementContent() {
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="text-xs text-gray-500 font-medium block mb-1.5">
-                            {creditLabel}
+                            Available Credits
                           </label>
-                          <input
-                            type="number"
-                            min="0"
-                            value={selfCredits}
-                            onChange={(e) => setSelfCredits(e.target.value)}
-                            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-400"
-                          />
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={selfCredits}
+                              onChange={(e) => setSelfCredits(e.target.value)}
+                              className="w-full px-3 py-2.5 pr-10 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-400"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-medium">
+                              Cr
+                            </span>
+                          </div>
                           <div className="flex gap-1 mt-1.5 flex-wrap">
                             {creditQuickAdds.slice(0, 3).map((q) => (
                               <button
                                 key={q}
                                 onClick={() =>
                                   setSelfCredits(
-                                    String((selfUser.credits || 0) + q),
+                                    String(
+                                      (
+                                        (parseFloat(selfCredits) || 0) + q
+                                      ).toFixed(2),
+                                    ),
                                   )
                                 }
                                 className="px-2 py-1 bg-green-50 text-green-700 text-xs rounded border border-green-200 hover:bg-green-100"
                               >
-                                +{q.toLocaleString()}
+                                +{q.toLocaleString()}Cr
                               </button>
                             ))}
                           </div>
@@ -928,7 +957,7 @@ function UserManagementContent() {
                         </div>
                         <div>
                           <label className="text-xs text-gray-500 font-medium block mb-1.5">
-                            {voucherLabel}
+                            Available Vouchers
                           </label>
                           <input
                             type="number"

@@ -67,8 +67,8 @@ The voucher management system has been successfully implemented in your admin pa
 
 #### **Voucher Details**
 
-- **Amount** (required): e.g., `3600` (in ₹)
-- **Discount Percentage**: e.g., `40` (%)
+- **Amount** (required): e.g., `100` (in ₹)
+- **Discount Percentage**: e.g., `70` (%)
 - **Validity Text**: e.g., "Valid till August 30th, 2026"
 - **Expiry Date**: Date picker for actual expiry
 - **Voucher Detail Image URL**: Image shown on detail screen
@@ -123,7 +123,7 @@ The voucher management system has been successfully implemented in your admin pa
      - Company logo (top left)
      - Discount badge (top right corner)
      - Company name and contact info
-     - Amount display (₹3600)
+     - Amount display (₹100)
      - Validity text (footer)
      - "Redeem Voucher" button
 

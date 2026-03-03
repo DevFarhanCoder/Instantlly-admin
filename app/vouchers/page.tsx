@@ -280,44 +280,52 @@ function VouchersContent() {
             {filteredVouchers.map((voucher) => (
               <div
                 key={voucher._id}
-                className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
               >
                 {/* Voucher Card Preview */}
-                <div className="relative h-48 bg-gradient-to-br from-indigo-500 to-purple-600 p-6">
+                <div className="relative h-48 bg-gradient-to-br from-gray-50 to-slate-100 p-5 overflow-hidden">
+                  {/* Decorative circles */}
+                  <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-indigo-100 opacity-40" />
+                  <div className="absolute -bottom-8 -left-4 w-24 h-24 rounded-full bg-purple-100 opacity-30" />
+
                   {/* Discount Badge */}
                   {voucher.discountPercentage && (
-                    <div className="absolute top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-bold">
+                    <div className="absolute top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md z-10">
                       -{voucher.discountPercentage}%
                     </div>
                   )}
 
                   {/* Company Logo */}
-                  {voucher.companyLogo && (
-                    <div className="w-16 h-16 bg-white rounded-lg mb-3 flex items-center justify-center overflow-hidden">
+                  {voucher.companyLogo ? (
+                    <div className="w-14 h-14 bg-white rounded-xl mb-3 flex items-center justify-center overflow-hidden shadow-sm border border-gray-100">
                       <Image
                         src={voucher.companyLogo}
                         alt={voucher.companyName}
-                        width={64}
-                        height={64}
+                        width={56}
+                        height={56}
                         className="object-contain"
                         unoptimized
                       />
                     </div>
+                  ) : (
+                    <div className="w-14 h-14 bg-indigo-100 rounded-xl mb-3 flex items-center justify-center shadow-sm">
+                      <Ticket className="w-7 h-7 text-indigo-500" />
+                    </div>
                   )}
 
                   {/* Company Info */}
-                  <div className="text-white">
-                    <h3 className="text-xl font-bold mb-1">
+                  <div className="relative z-10">
+                    <h3 className="text-lg font-bold text-gray-900 mb-0.5 leading-tight">
                       {voucher.companyName}
                     </h3>
                     {voucher.phoneNumber && (
-                      <p className="text-sm opacity-90 flex items-center gap-1">
+                      <p className="text-xs text-gray-500 flex items-center gap-1">
                         <Phone className="w-3 h-3" />
                         {voucher.phoneNumber}
                       </p>
                     )}
                     {voucher.address && (
-                      <p className="text-sm opacity-90 flex items-center gap-1 mt-1">
+                      <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                         <MapPin className="w-3 h-3" />
                         {voucher.address}
                       </p>
@@ -325,9 +333,9 @@ function VouchersContent() {
                   </div>
 
                   {/* Amount */}
-                  <div className="absolute bottom-4 right-4 bg-white bg-opacity-20 backdrop-blur-sm rounded-lg px-4 py-2">
-                    <p className="text-xs text-white opacity-80">Value</p>
-                    <p className="text-2xl font-bold text-white">
+                  <div className="absolute bottom-4 right-4 bg-indigo-600 rounded-xl px-4 py-2 shadow-md z-10">
+                    <p className="text-xs text-indigo-200 leading-none mb-0.5">Value</p>
+                    <p className="text-2xl font-extrabold text-white leading-none">
                       ₹{voucher.amount}
                     </p>
                   </div>
@@ -369,7 +377,7 @@ function VouchersContent() {
                       onClick={() =>
                         router.push(`/vouchers/${voucher._id}/edit`)
                       }
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
                     >
                       <Edit2 className="w-4 h-4" />
                       Edit

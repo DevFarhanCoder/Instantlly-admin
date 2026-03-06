@@ -221,7 +221,7 @@ function UserManagementContent() {
       isVoucherAdmin: u.isVoucherAdmin || false,
     });
     setNewCredits(String(u.credits || 0));
-    setNewVouchers(String(u.voucherBalance || 0));
+    setNewVouchers("0"); // will be overwritten by fetchVoucherStats with per-voucher balance
     setMessage(null);
     setCreditReason("");
     setVoucherReason("");
@@ -307,7 +307,7 @@ function UserManagementContent() {
       if (res.success && res.user) {
         setSelfUser(res.user);
         setSelfCredits(String(res.user.credits || 0));
-        setSelfVouchers(String(res.user.voucherBalance || 0));
+        setSelfVouchers("0"); // will be overwritten by fetchVoucherStats with per-voucher balance
         fetchVoucherStats(res.user._id, selectedVoucher?._id, "self");
       } else {
         setSelfMessage({
@@ -900,7 +900,7 @@ function UserManagementContent() {
                             Available Vouchers
                           </p>
                           <p className="font-bold text-xl">
-                            {selfUser.voucherBalance.toLocaleString()}
+                            {(voucherStats?.voucherBalance ?? 0).toLocaleString()}
                           </p>
                           <p className="text-purple-200 text-xs mt-0.5">
                             Min: {selectedVoucher.minVouchersRequired}

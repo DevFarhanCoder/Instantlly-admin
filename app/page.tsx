@@ -18,6 +18,7 @@ import {
   Ticket,
   Users,
   Zap,
+  Layers,
 } from "lucide-react";
 import {
   LineChart,
@@ -358,6 +359,13 @@ function DashboardContent() {
               path: "/feedback",
               color: "text-blue-600",
               bg: "hover:bg-blue-100",
+            },
+            {
+              label: "Category Manager",
+              icon: <Layers className="w-5 h-5" />,
+              path: "/categories",
+              color: "text-violet-600",
+              bg: "hover:bg-violet-100",
             },
           ].map(({ label, icon, path, color, bg }) => (
             <button

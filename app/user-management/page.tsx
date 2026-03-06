@@ -269,7 +269,11 @@ function UserManagementContent() {
     try {
       const res = await api.put(
         `/api/admin/users/${selectedUser._id}/update-vouchers`,
-        { voucherBalance: parseInt(newVouchers), reason: voucherReason },
+        {
+          voucherBalance: parseInt(newVouchers),
+          reason: voucherReason,
+          voucherId: selectedVoucher?._id,
+        },
       );
       if (res.success) {
         setSelectedUser({
@@ -337,6 +341,7 @@ function UserManagementContent() {
           ? api.put(`/api/admin/users/${selfUser._id}/update-vouchers`, {
               voucherBalance: parseInt(selfVouchers),
               reason: selfVouchersReason || "Admin self-update",
+              voucherId: selectedVoucher?._id,
             })
           : Promise.resolve({ success: true }),
       ]);

@@ -78,6 +78,7 @@ function MLMCreditsContent() {
 
   //  Initialize slots
   const [adminPhone, setAdminPhone] = useState("");
+  const [initCreditAmount, setInitCreditAmount] = useState("");
   const [initLoading, setInitLoading] = useState(false);
   const [initMessage, setInitMessage] = useState<{
     type: "success" | "error";
@@ -86,6 +87,7 @@ function MLMCreditsContent() {
 
   //  Increase slots
   const [increaseCount, setIncreaseCount] = useState("5");
+  const [increaseCreditAmount, setIncreaseCreditAmount] = useState("");
   const [increaseLoading, setIncreaseLoading] = useState(false);
   const [increaseMsg, setIncreaseMsg] = useState<{
     type: "success" | "error";
@@ -205,6 +207,9 @@ function MLMCreditsContent() {
       const res = await api.post("/api/admin/mlm/slots/initialize", {
         adminUserId: userRes.user._id,
         voucherId: selectedVoucher._id,
+        ...(initCreditAmount && Number(initCreditAmount) > 0
+          ? { creditAmount: Number(initCreditAmount) }
+          : {}),
       });
       if (res.success) {
         setInitMessage({
@@ -236,6 +241,9 @@ function MLMCreditsContent() {
       const res = await api.post("/api/admin/mlm/slots/increase", {
         voucherId: selectedVoucher._id,
         count: n,
+        ...(increaseCreditAmount && Number(increaseCreditAmount) > 0
+          ? { creditAmount: Number(increaseCreditAmount) }
+          : {}),
       });
       if (res.success) {
         setIncreaseMsg({
@@ -555,6 +563,14 @@ function MLMCreditsContent() {
                       onChange={(e) => setAdminPhone(e.target.value)}
                       className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                     />
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="Credits per slot (optional, default: 29,296,872,000)"
+                      value={initCreditAmount}
+                      onChange={(e) => setInitCreditAmount(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
                     <button
                       onClick={handleInitAdmin}
                       disabled={initLoading || !adminPhone.trim()}
@@ -603,10 +619,20 @@ function MLMCreditsContent() {
                           className="w-28 px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                           placeholder="Count"
                         />
+                        <input
+                          type="number"
+                          min="1"
+                          value={increaseCreditAmount}
+                          onChange={(e) =>
+                            setIncreaseCreditAmount(e.target.value)
+                          }
+                          className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                          placeholder="Credits per slot (optional)"
+                        />
                         <button
                           onClick={handleIncreaseSlots}
                           disabled={increaseLoading}
-                          className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
+                          className="py-2.5 px-5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
                         >
                           {increaseLoading ? (
                             <Loader2 size={16} className="animate-spin" />

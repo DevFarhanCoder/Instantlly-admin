@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Head from "next/head";
 import {
   ArrowLeft,
   Plus,
@@ -1287,8 +1288,13 @@ function EmptyState({ title, desc }: { title: string; desc: string }) {
 // ─────────────────────────────────────────────────────────────
 export default function CategoriesPage() {
   return (
-    <AuthGuard>
-      <CategoriesContent />
-    </AuthGuard>
+    <>
+      <Head>
+        <title>Category Manager | Instantlly Admin</title>
+      </Head>
+      <AuthGuard>
+        <CategoriesContent />
+      </AuthGuard>
+    </>
   );
 }

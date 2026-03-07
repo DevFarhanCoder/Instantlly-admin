@@ -109,7 +109,9 @@ function CategoriesContent() {
 
   // ── Custom service approve modal ──
   const [approveCs, setApproveCs] = useState<CustomService | null>(null);
-  const [approveAs, setApproveAs] = useState<"category" | "subcategory">("subcategory");
+  const [approveAs, setApproveAs] = useState<"category" | "subcategory">(
+    "subcategory",
+  );
   const [approveCatId, setApproveCatId] = useState("");
   const [approvingCs, setApprovingCs] = useState(false);
   const [rejectingCs, setRejectingCs] = useState<string | null>(null);
@@ -134,7 +136,10 @@ function CategoriesContent() {
       const data = await api.get("/api/categories/admin/all");
       setCategories(data.data || []);
     } catch (err: any) {
-      showToast(err?.response?.data?.error || "Failed to fetch categories", "error");
+      showToast(
+        err?.response?.data?.error || "Failed to fetch categories",
+        "error",
+      );
     } finally {
       setLoading(false);
     }
@@ -148,7 +153,10 @@ function CategoriesContent() {
       });
       setCustomServices(data.data || []);
     } catch (err: any) {
-      showToast(err?.response?.data?.error || "Failed to fetch custom services", "error");
+      showToast(
+        err?.response?.data?.error || "Failed to fetch custom services",
+        "error",
+      );
     } finally {
       setCsLoading(false);
     }
@@ -162,8 +170,13 @@ function CategoriesContent() {
   // ─────────────────────────────────────────────────────────
   // CSV helpers
   // ─────────────────────────────────────────────────────────
-  const parseCSVText = (text: string): { headers: string[]; rows: Record<string, string>[] } => {
-    const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const parseCSVText = (
+    text: string,
+  ): { headers: string[]; rows: Record<string, string>[] } => {
+    const lines = text
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
     if (lines.length < 2) return { headers: [], rows: [] };
 
     const splitRow = (line: string): string[] => {
@@ -171,19 +184,28 @@ function CategoriesContent() {
       let cur = "";
       let inQ = false;
       for (const ch of line) {
-        if (ch === '"') { inQ = !inQ; }
-        else if (ch === "," && !inQ) { result.push(cur.trim()); cur = ""; }
-        else { cur += ch; }
+        if (ch === '"') {
+          inQ = !inQ;
+        } else if (ch === "," && !inQ) {
+          result.push(cur.trim());
+          cur = "";
+        } else {
+          cur += ch;
+        }
       }
       result.push(cur.trim());
       return result;
     };
 
-    const headers = splitRow(lines[0]).map((h) => h.replace(/^"|"$/g, "").trim());
+    const headers = splitRow(lines[0]).map((h) =>
+      h.replace(/^"|"$/g, "").trim(),
+    );
     const rows = lines.slice(1).map((line) => {
       const vals = splitRow(line);
       const row: Record<string, string> = {};
-      headers.forEach((h, i) => { row[h] = (vals[i] || "").replace(/^"|"$/g, "").trim(); });
+      headers.forEach((h, i) => {
+        row[h] = (vals[i] || "").replace(/^"|"$/g, "").trim();
+      });
       return row;
     });
     return { headers, rows };
@@ -220,8 +242,9 @@ function CategoriesContent() {
       setCsvFileName("");
     } catch (err: any) {
       showToast(
-        err?.response?.data?.error || "CSV upload failed. Please check the backend is deployed.",
-        "error"
+        err?.response?.data?.error ||
+          "CSV upload failed. Please check the backend is deployed.",
+        "error",
       );
     } finally {
       setUploadingCsv(false);
@@ -233,15 +256,17 @@ function CategoriesContent() {
   // ─────────────────────────────────────────────────────────
   const totalSubs = categories.reduce(
     (acc, c) => acc + (c.subcategories?.length || 0),
-    0
+    0,
   );
-  const pendingCount = customServices.filter((cs) => cs.status === "pending").length;
+  const pendingCount = customServices.filter(
+    (cs) => cs.status === "pending",
+  ).length;
   const filteredCategories = categories.filter(
     (c) =>
       c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (c.subcategories || []).some((s) =>
-        s.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+        s.toLowerCase().includes(searchQuery.toLowerCase()),
+      ),
   );
 
   // ─────────────────────────────────────────────────────────
@@ -250,7 +275,7 @@ function CategoriesContent() {
   const handleSeed = async () => {
     if (
       !window.confirm(
-        "This will seed 11 default categories from the hardcoded list.\nExisting categories will be updated (new subcategories merged).\n\nProceed?"
+        "This will seed 11 default categories from the hardcoded list.\nExisting categories will be updated (new subcategories merged).\n\nProceed?",
       )
     )
       return;
@@ -283,7 +308,10 @@ function CategoriesContent() {
       setShowAddCategory(false);
       fetchCategories();
     } catch (err: any) {
-      showToast(err?.response?.data?.error || "Failed to add category", "error");
+      showToast(
+        err?.response?.data?.error || "Failed to add category",
+        "error",
+      );
     } finally {
       setAddingCategory(false);
     }
@@ -334,7 +362,7 @@ function CategoriesContent() {
   const handleDeleteCategory = async (cat: Category) => {
     if (
       !window.confirm(
-        `Delete category "${cat.name}" and its ${cat.subcategories?.length || 0} subcategories?\n\nThis cannot be undone.`
+        `Delete category "${cat.name}" and its ${cat.subcategories?.length || 0} subcategories?\n\nThis cannot be undone.`,
       )
     )
       return;
@@ -363,7 +391,10 @@ function CategoriesContent() {
       setAddSubFor(null);
       fetchCategories();
     } catch (err: any) {
-      showToast(err?.response?.data?.error || "Failed to add subcategory", "error");
+      showToast(
+        err?.response?.data?.error || "Failed to add subcategory",
+        "error",
+      );
     } finally {
       setAddingSub(false);
     }
@@ -373,10 +404,11 @@ function CategoriesContent() {
   // Remove subcategory
   // ─────────────────────────────────────────────────────────
   const handleRemoveSub = async (cat: Category, subName: string) => {
-    if (!window.confirm(`Remove subcategory "${subName}" from "${cat.name}"?`)) return;
+    if (!window.confirm(`Remove subcategory "${subName}" from "${cat.name}"?`))
+      return;
     try {
       await api.delete(
-        `/api/categories/admin/category/${cat._id}/subcategory/${encodeURIComponent(subName)}`
+        `/api/categories/admin/category/${cat._id}/subcategory/${encodeURIComponent(subName)}`,
       );
       showToast(`"${subName}" removed`);
       fetchCategories();
@@ -398,7 +430,10 @@ function CategoriesContent() {
     try {
       const body: any = { approveAs };
       if (approveAs === "subcategory") body.categoryId = approveCatId;
-      await api.put(`/api/categories/admin/approve-custom/${approveCs._id}`, body);
+      await api.put(
+        `/api/categories/admin/approve-custom/${approveCs._id}`,
+        body,
+      );
       showToast(`"${approveCs.serviceName}" approved as ${approveAs}`);
       setApproveCs(null);
       setApproveCatId("");
@@ -464,7 +499,8 @@ function CategoriesContent() {
               Category Manager
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              Manage categories, subcategories, and user-submitted service requests
+              Manage categories, subcategories, and user-submitted service
+              requests
             </p>
           </div>
         </div>
@@ -598,7 +634,11 @@ function CategoriesContent() {
                     onDelete={() => handleDeleteCategory(cat)}
                     onRemoveSub={(sub) => handleRemoveSub(cat, sub)}
                     onUploadCsv={(sub) =>
-                      setCsvUploadFor({ catId: cat._id, catName: cat.name, subcategory: sub })
+                      setCsvUploadFor({
+                        catId: cat._id,
+                        catName: cat.name,
+                        subcategory: sub,
+                      })
                     }
                     addSubFor={addSubFor}
                     newSubName={newSubName}
@@ -639,24 +679,35 @@ function CategoriesContent() {
                 <table className="min-w-full divide-y divide-gray-200 text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      {["Service Name", "Submitted By", "Parent Category", "Status", "Date", "Actions"].map(
-                        (h) => (
-                          <th
-                            key={h}
-                            className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
-                          >
-                            {h}
-                          </th>
-                        )
-                      )}
+                      {[
+                        "Service Name",
+                        "Submitted By",
+                        "Parent Category",
+                        "Status",
+                        "Date",
+                        "Actions",
+                      ].map((h) => (
+                        <th
+                          key={h}
+                          className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                        >
+                          {h}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-100">
                     {customServices.map((cs) => (
                       <tr key={cs._id} className="hover:bg-gray-50">
-                        <td className="px-5 py-3 font-medium text-gray-900">{cs.serviceName}</td>
-                        <td className="px-5 py-3 text-gray-600">{cs.userName || "—"}</td>
-                        <td className="px-5 py-3 text-gray-600">{cs.parentCategory || "—"}</td>
+                        <td className="px-5 py-3 font-medium text-gray-900">
+                          {cs.serviceName}
+                        </td>
+                        <td className="px-5 py-3 text-gray-600">
+                          {cs.userName || "—"}
+                        </td>
+                        <td className="px-5 py-3 text-gray-600">
+                          {cs.parentCategory || "—"}
+                        </td>
                         <td className="px-5 py-3">
                           <StatusBadge status={cs.status} />
                         </td>
@@ -691,7 +742,9 @@ function CategoriesContent() {
                               </button>
                             </div>
                           ) : (
-                            <span className="text-xs text-gray-400">No actions</span>
+                            <span className="text-xs text-gray-400">
+                              No actions
+                            </span>
                           )}
                         </td>
                       </tr>
@@ -708,7 +761,10 @@ function CategoriesContent() {
           MODAL: Add Category
       ══════════════════════════════════════════════════ */}
       {showAddCategory && (
-        <Modal title="Add New Category" onClose={() => setShowAddCategory(false)}>
+        <Modal
+          title="Add New Category"
+          onClose={() => setShowAddCategory(false)}
+        >
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -751,7 +807,11 @@ function CategoriesContent() {
                 disabled={addingCategory || !newCatName.trim()}
                 className="flex items-center gap-2 px-5 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition-colors disabled:opacity-50"
               >
-                {addingCategory ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                {addingCategory ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4" />
+                )}
                 Add Category
               </button>
             </div>
@@ -763,7 +823,10 @@ function CategoriesContent() {
           MODAL: Edit Category
       ══════════════════════════════════════════════════ */}
       {editCat && (
-        <Modal title={`Edit — ${editCat.name}`} onClose={() => setEditCat(null)}>
+        <Modal
+          title={`Edit — ${editCat.name}`}
+          onClose={() => setEditCat(null)}
+        >
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -800,7 +863,11 @@ function CategoriesContent() {
                 disabled={savingEdit}
                 className="flex items-center gap-2 px-5 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition-colors disabled:opacity-50"
               >
-                {savingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                {savingEdit ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Check className="w-4 h-4" />
+                )}
                 Save Changes
               </button>
             </div>
@@ -813,13 +880,16 @@ function CategoriesContent() {
       ══════════════════════════════════════════════════ */}
       {approveCs && (
         <Modal
-          title={`Approve — "${approveCs.serviceName}"`}
+          title={`Approve — ${approveCs.serviceName}`}
           onClose={() => setApproveCs(null)}
         >
           <div className="space-y-4">
             <p className="text-sm text-gray-600">
               How would you like to add{" "}
-              <span className="font-semibold text-gray-800">"{approveCs.serviceName}"</span>?
+              <span className="font-semibold text-gray-800">
+                &ldquo;{approveCs.serviceName}&rdquo;
+              </span>
+              ?
             </p>
 
             <div className="grid grid-cols-2 gap-3">
@@ -833,7 +903,9 @@ function CategoriesContent() {
                       : "border-gray-200 text-gray-600 hover:border-gray-300"
                   }`}
                 >
-                  {opt === "category" ? "🆕 New Category" : "📌 Subcategory of…"}
+                  {opt === "category"
+                    ? "🆕 New Category"
+                    : "📌 Subcategory of…"}
                 </button>
               ))}
             </div>
@@ -867,7 +939,9 @@ function CategoriesContent() {
               </button>
               <button
                 onClick={handleApproveCustom}
-                disabled={approvingCs || (approveAs === "subcategory" && !approveCatId)}
+                disabled={
+                  approvingCs || (approveAs === "subcategory" && !approveCatId)
+                }
                 className="flex items-center gap-2 px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
               >
                 {approvingCs ? (
@@ -912,17 +986,21 @@ function CategoriesContent() {
                 <FileText className="w-3.5 h-3.5" /> Required CSV Headers
               </p>
               <code className="text-xs text-amber-900 break-all leading-relaxed">
-                businessName, ownerName, description, phone, whatsapp, email, website, area, city, state, pincode, listingType
+                businessName, ownerName, description, phone, whatsapp, email,
+                website, area, city, state, pincode, listingType
               </code>
               <p className="text-xs text-amber-700 mt-1.5">
-                ✦ <strong>businessName</strong> &amp; <strong>phone</strong> required per row &nbsp;·&nbsp;
-                listingType: <em>free</em> or <em>promoted</em> (default: free)
+                ✦ <strong>businessName</strong> &amp; <strong>phone</strong>{" "}
+                required per row &nbsp;·&nbsp; listingType: <em>free</em> or{" "}
+                <em>promoted</em> (default: free)
               </p>
             </div>
 
             {/* File picker */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Choose CSV File</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Choose CSV File
+              </label>
               <label className="flex flex-col items-center justify-center gap-2 w-full px-4 py-6 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-violet-400 hover:bg-violet-50 transition-colors">
                 <input
                   type="file"
@@ -936,8 +1014,12 @@ function CategoriesContent() {
                 <Upload className="w-6 h-6 text-gray-400" />
                 <span className="text-sm text-gray-500">
                   {csvFileName ? (
-                    <span className="text-violet-700 font-medium">{csvFileName}</span>
-                  ) : "Click to upload CSV"}
+                    <span className="text-violet-700 font-medium">
+                      {csvFileName}
+                    </span>
+                  ) : (
+                    "Click to upload CSV"
+                  )}
                 </span>
               </label>
             </div>
@@ -946,34 +1028,49 @@ function CategoriesContent() {
             {csvRows.length > 0 && (
               <div>
                 <p className="text-sm font-medium text-gray-700 mb-2">
-                  Preview — {csvRows.length} row{csvRows.length !== 1 ? "s" : ""} detected
+                  Preview — {csvRows.length} row
+                  {csvRows.length !== 1 ? "s" : ""} detected
                 </p>
                 <div className="overflow-x-auto border border-gray-200 rounded-lg max-h-44">
                   <table className="text-xs min-w-full">
                     <thead className="bg-gray-50 sticky top-0">
                       <tr>
-                        {["businessName", "phone", "city", "listingType"].map((h) => (
-                          <th key={h} className="px-3 py-2 text-left text-gray-500 font-semibold whitespace-nowrap">
-                            {h}
-                          </th>
-                        ))}
+                        {["businessName", "phone", "city", "listingType"].map(
+                          (h) => (
+                            <th
+                              key={h}
+                              className="px-3 py-2 text-left text-gray-500 font-semibold whitespace-nowrap"
+                            >
+                              {h}
+                            </th>
+                          ),
+                        )}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {csvRows.slice(0, 5).map((row, i) => (
                         <tr key={i} className="hover:bg-gray-50">
-                          {["businessName", "phone", "city", "listingType"].map((h) => (
-                            <td key={h} className="px-3 py-1.5 text-gray-700 whitespace-nowrap">
-                              {row[h] || <span className="text-gray-300">—</span>}
-                            </td>
-                          ))}
+                          {["businessName", "phone", "city", "listingType"].map(
+                            (h) => (
+                              <td
+                                key={h}
+                                className="px-3 py-1.5 text-gray-700 whitespace-nowrap"
+                              >
+                                {row[h] || (
+                                  <span className="text-gray-300">—</span>
+                                )}
+                              </td>
+                            ),
+                          )}
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
                 {csvRows.length > 5 && (
-                  <p className="text-xs text-gray-400 mt-1">&hellip;and {csvRows.length - 5} more rows</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    &hellip;and {csvRows.length - 5} more rows
+                  </p>
                 )}
               </div>
             )}
@@ -1000,7 +1097,9 @@ function CategoriesContent() {
                 ) : (
                   <Upload className="w-4 h-4" />
                 )}
-                {csvRows.length > 0 ? `Upload ${csvRows.length} Companies` : "Upload"}
+                {csvRows.length > 0
+                  ? `Upload ${csvRows.length} Companies`
+                  : "Upload"}
               </button>
             </div>
           </div>
@@ -1093,7 +1192,9 @@ function CategoryCard({
           <span className="text-2xl w-9 text-center shrink-0">{cat.icon}</span>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-gray-900 text-base">{cat.name}</span>
+              <span className="font-semibold text-gray-900 text-base">
+                {cat.name}
+              </span>
               {!cat.isActive && (
                 <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
                   Inactive
@@ -1105,7 +1206,11 @@ function CategoryCard({
             </span>
           </div>
           <span className="ml-2 text-gray-400">
-            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            {expanded ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
           </span>
         </button>
 
@@ -1127,7 +1232,11 @@ function CategoryCard({
             }`}
             title={cat.isActive ? "Disable" : "Enable"}
           >
-            {cat.isActive ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+            {cat.isActive ? (
+              <Eye className="w-4 h-4" />
+            ) : (
+              <EyeOff className="w-4 h-4" />
+            )}
           </button>
           <button
             onClick={onDelete}
@@ -1145,7 +1254,9 @@ function CategoryCard({
           {/* Subcategory tags */}
           <div className="flex flex-wrap gap-2 mb-4">
             {(cat.subcategories || []).length === 0 ? (
-              <span className="text-sm text-gray-400 italic">No subcategories yet</span>
+              <span className="text-sm text-gray-400 italic">
+                No subcategories yet
+              </span>
             ) : (
               (cat.subcategories || []).map((sub) => (
                 <span
@@ -1192,7 +1303,11 @@ function CategoryCard({
                 disabled={addingSub || !newSubName.trim()}
                 className="px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition-colors disabled:opacity-50 flex items-center gap-1"
               >
-                {addingSub ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                {addingSub ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Check className="w-4 h-4" />
+                )}
                 Add
               </button>
               <button
@@ -1218,7 +1333,10 @@ function CategoryCard({
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { cls: string; icon: React.ReactNode; label: string }> = {
+  const map: Record<
+    string,
+    { cls: string; icon: React.ReactNode; label: string }
+  > = {
     pending: {
       cls: "bg-amber-100 text-amber-700",
       icon: <AlertCircle className="w-3 h-3" />,

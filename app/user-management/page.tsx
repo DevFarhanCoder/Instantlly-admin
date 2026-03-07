@@ -900,7 +900,9 @@ function UserManagementContent() {
                             Available Vouchers
                           </p>
                           <p className="font-bold text-xl">
-                            {(voucherStats?.voucherBalance ?? 0).toLocaleString()}
+                            {(
+                              voucherStats?.voucherBalance ?? 0
+                            ).toLocaleString()}
                           </p>
                           <p className="text-purple-200 text-xs mt-0.5">
                             Min: {selectedVoucher.minVouchersRequired}

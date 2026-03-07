@@ -19,6 +19,7 @@ import {
   Package,
   Globe,
   EyeOff,
+  Trash2,
 } from "lucide-react";
 import AuthGuard from "../components/AuthGuard";
 import { api } from "../lib/api";
@@ -78,6 +79,7 @@ function MLMCreditsContent() {
 
   //  Initialize slots
   const [adminPhone, setAdminPhone] = useState("");
+  const [initSlotCount, setInitSlotCount] = useState("5");
   const [initCreditAmount, setInitCreditAmount] = useState("");
   const [initLoading, setInitLoading] = useState(false);
   const [initMessage, setInitMessage] = useState<{
@@ -90,6 +92,17 @@ function MLMCreditsContent() {
   const [increaseCreditAmount, setIncreaseCreditAmount] = useState("");
   const [increaseLoading, setIncreaseLoading] = useState(false);
   const [increaseMsg, setIncreaseMsg] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
+  //  Delete slots
+  const [deleteMode, setDeleteMode] = useState(false);
+  const [selectedForDelete, setSelectedForDelete] = useState<Set<number>>(
+    new Set(),
+  );
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteMsg, setDeleteMsg] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
@@ -114,6 +127,9 @@ function MLMCreditsContent() {
   useEffect(() => {
     if (selectedVoucher && tab === "slots") fetchSlots();
     if (tab === "pending") fetchPending();
+    setDeleteMode(false);
+    setSelectedForDelete(new Set());
+    setDeleteMsg(null);
   }, [tab, selectedVoucher]);
 
   const fetchVouchers = async () => {
@@ -207,6 +223,7 @@ function MLMCreditsContent() {
       const res = await api.post("/api/admin/mlm/slots/initialize", {
         adminUserId: userRes.user._id,
         voucherId: selectedVoucher._id,
+        slotCount: parseInt(initSlotCount) || 5,
         ...(initCreditAmount && Number(initCreditAmount) > 0
           ? { creditAmount: Number(initCreditAmount) }
           : {}),
@@ -214,7 +231,7 @@ function MLMCreditsContent() {
       if (res.success) {
         setInitMessage({
           type: "success",
-          text: res.message || "30 slots initialized!",
+          text: res.message || `${initSlotCount} slots initialized!`,
         });
         fetchSlots();
       }
@@ -259,6 +276,45 @@ function MLMCreditsContent() {
       });
     } finally {
       setIncreaseLoading(false);
+    }
+  };
+
+  const handleDeleteSlots = async (deleteAll = false) => {
+    if (!selectedVoucher) return;
+    if (!deleteAll && selectedForDelete.size === 0) {
+      setDeleteMsg({
+        type: "error",
+        text: "Select at least one slot to delete",
+      });
+      return;
+    }
+    const confirmMsg = deleteAll
+      ? `Permanently delete ALL ${slots.length} slots for ${selectedVoucher.companyName}? This cannot be undone.`
+      : `Permanently delete ${selectedForDelete.size} selected slot(s)? This cannot be undone.`;
+    if (!window.confirm(confirmMsg)) return;
+    setDeleteLoading(true);
+    setDeleteMsg(null);
+    try {
+      const body: any = { voucherId: selectedVoucher._id };
+      if (deleteAll) {
+        body.deleteAll = true;
+      } else {
+        body.slotNumbers = Array.from(selectedForDelete);
+      }
+      const res = await api.delete("/api/admin/mlm/slots", { data: body });
+      if (res.success) {
+        setDeleteMsg({ type: "success", text: res.message || "Slots deleted" });
+        setSelectedForDelete(new Set());
+        setDeleteMode(false);
+        fetchSlots();
+      }
+    } catch (err: any) {
+      setDeleteMsg({
+        type: "error",
+        text: err.message || "Failed to delete slots",
+      });
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -553,14 +609,21 @@ function MLMCreditsContent() {
                     <p className="text-sm text-gray-600">
                       No MLM slots yet for{" "}
                       <strong>{selectedVoucher.companyName}</strong>. Enter your
-                      admin phone number to initialize 30 slots for this
-                      voucher.
+                      admin phone number and the number of slots to initialize.
                     </p>
                     <input
                       type="tel"
                       placeholder="Your registered phone number"
                       value={adminPhone}
                       onChange={(e) => setAdminPhone(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="Number of slots (required)"
+                      value={initSlotCount}
+                      onChange={(e) => setInitSlotCount(e.target.value)}
                       className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                     <input
@@ -573,7 +636,9 @@ function MLMCreditsContent() {
                     />
                     <button
                       onClick={handleInitAdmin}
-                      disabled={initLoading || !adminPhone.trim()}
+                      disabled={
+                        initLoading || !adminPhone.trim() || !initSlotCount
+                      }
                       className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
                     >
                       {initLoading ? (
@@ -581,7 +646,7 @@ function MLMCreditsContent() {
                       ) : (
                         <Star size={16} />
                       )}
-                      Initialize 30 Admin Slots
+                      Initialize {initSlotCount || "N"} Admin Slots
                     </button>
                     {initMessage && (
                       <p
@@ -658,6 +723,113 @@ function MLMCreditsContent() {
                             />
                           )}
                           {increaseMsg.text}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Delete slots section */}
+                    <div className="bg-white rounded-xl border border-red-200 p-5 shadow-sm space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-red-700 flex items-center gap-2">
+                          <Trash2 size={16} className="text-red-500" />
+                          Delete Slots
+                        </h3>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setDeleteMode(!deleteMode);
+                              setSelectedForDelete(new Set());
+                              setDeleteMsg(null);
+                            }}
+                            className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${deleteMode ? "bg-gray-100 text-gray-600" : "bg-red-50 text-red-600 hover:bg-red-100"}`}
+                          >
+                            {deleteMode ? "Cancel" : "Select Slots"}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSlots(true)}
+                            disabled={deleteLoading}
+                            className="text-xs px-3 py-1.5 rounded-lg font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center gap-1"
+                          >
+                            {deleteLoading ? (
+                              <Loader2 size={12} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={12} />
+                            )}
+                            Delete All
+                          </button>
+                        </div>
+                      </div>
+
+                      {deleteMode && (
+                        <div className="space-y-2">
+                          <p className="text-xs text-gray-500">
+                            Select slots to permanently remove from the
+                            database.
+                            {selectedForDelete.size > 0 && (
+                              <span className="ml-1 font-medium text-red-600">
+                                {selectedForDelete.size} selected
+                              </span>
+                            )}
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {slots.map((slot) => (
+                              <button
+                                key={slot.slotNumber}
+                                onClick={() => {
+                                  setSelectedForDelete((prev) => {
+                                    const next = new Set(prev);
+                                    next.has(slot.slotNumber)
+                                      ? next.delete(slot.slotNumber)
+                                      : next.add(slot.slotNumber);
+                                    return next;
+                                  });
+                                }}
+                                className={`w-10 h-10 rounded-lg text-sm font-medium border-2 transition-colors ${
+                                  selectedForDelete.has(slot.slotNumber)
+                                    ? "bg-red-600 text-white border-red-600"
+                                    : slot.status === "sent"
+                                      ? "bg-green-50 text-green-700 border-green-300 hover:border-red-400"
+                                      : "bg-gray-50 text-gray-700 border-gray-200 hover:border-red-400"
+                                }`}
+                              >
+                                {slot.slotNumber}
+                              </button>
+                            ))}
+                          </div>
+                          <button
+                            onClick={() => handleDeleteSlots(false)}
+                            disabled={
+                              deleteLoading || selectedForDelete.size === 0
+                            }
+                            className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
+                          >
+                            {deleteLoading ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={16} />
+                            )}
+                            Delete {selectedForDelete.size} Selected Slot
+                            {selectedForDelete.size !== 1 ? "s" : ""}
+                          </button>
+                        </div>
+                      )}
+
+                      {deleteMsg && (
+                        <div
+                          className={`flex items-start gap-2 p-3 rounded-lg border text-sm ${deleteMsg.type === "success" ? "bg-green-50 border-green-200 text-green-700" : "bg-red-50 border-red-200 text-red-700"}`}
+                        >
+                          {deleteMsg.type === "success" ? (
+                            <CheckCircle
+                              size={15}
+                              className="mt-0.5 shrink-0"
+                            />
+                          ) : (
+                            <AlertCircle
+                              size={15}
+                              className="mt-0.5 shrink-0"
+                            />
+                          )}
+                          {deleteMsg.text}
                         </div>
                       )}
                     </div>
@@ -758,6 +930,53 @@ function MLMCreditsContent() {
                                   using your admin account.
                                 </p>
                               )}
+                              <button
+                                onClick={async () => {
+                                  if (
+                                    !window.confirm(
+                                      `Permanently delete Slot #${slot.slotNumber}? This cannot be undone.`,
+                                    )
+                                  )
+                                    return;
+                                  setDeleteLoading(true);
+                                  setDeleteMsg(null);
+                                  try {
+                                    const res = await api.delete(
+                                      "/api/admin/mlm/slots",
+                                      {
+                                        data: {
+                                          voucherId: selectedVoucher!._id,
+                                          slotNumbers: [slot.slotNumber],
+                                        },
+                                      },
+                                    );
+                                    if (res.success) {
+                                      setDeleteMsg({
+                                        type: "success",
+                                        text: res.message || "Slot deleted",
+                                      });
+                                      setExpandedSlot(null);
+                                      fetchSlots();
+                                    }
+                                  } catch (err: any) {
+                                    setDeleteMsg({
+                                      type: "error",
+                                      text: err.message || "Failed to delete",
+                                    });
+                                  } finally {
+                                    setDeleteLoading(false);
+                                  }
+                                }}
+                                disabled={deleteLoading}
+                                className="mt-2 flex items-center gap-1.5 text-xs text-red-600 hover:text-red-700 font-medium disabled:opacity-50"
+                              >
+                                {deleteLoading ? (
+                                  <Loader2 size={12} className="animate-spin" />
+                                ) : (
+                                  <Trash2 size={12} />
+                                )}
+                                Delete this slot
+                              </button>
                             </div>
                           )}
                         </div>

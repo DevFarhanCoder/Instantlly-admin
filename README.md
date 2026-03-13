@@ -1,6 +1,6 @@
 # InstantllyCards Admin Dashboard
 
-A comprehensive admin dashboard to monitor and manage your InstantllyCards application, built with Next.js.
+A comprehensive admin dashboard to monitor and manage your InstantllyCards application, built with **Next.js 15** + TypeScript + Tailwind CSS.
 
 ## 🌟 Features
 
@@ -27,6 +27,15 @@ A comprehensive admin dashboard to monitor and manage your InstantllyCards appli
 - Activity monitoring
 - Trend analysis
 
+✅ **N-Level Category Manager** 🗂️
+- Unlimited hierarchy: Main → Sub → Sub-Sub → …
+- Breadcrumb navigator — drill into any depth
+- Add / Edit / Delete categories at every level
+- Enable / Disable individual nodes
+- CSV upload (business listings) attached to **any** node
+- Custom service request review (approve / reject)
+- Auto-seeds 11 default root categories via Seed button
+
 ## 🚀 Deployment Options
 
 ### Local Development
@@ -41,7 +50,7 @@ Admin Panel: Deploy to Vercel staging
 Backend: `https://api.instantllycards.com`  
 Admin Panel: Deploy to Vercel production
 
-## 📋 Quick Start - Local Development
+## 📋 Quick Start — Local Development
 
 1. **Install Dependencies**
    ```bash
@@ -49,8 +58,8 @@ Admin Panel: Deploy to Vercel production
    ```
 
 2. **Configure Environment**
-   
-   File: `.env.local`
+
+   Create `.env.local`:
    ```env
    NEXT_PUBLIC_API_BASE=http://localhost:8080
    NEXT_PUBLIC_ADMIN_KEY=Farhan_90
@@ -61,21 +70,51 @@ Admin Panel: Deploy to Vercel production
    npm run dev
    ```
 
-4. **Open Browser**
-   
-   Navigate to: http://localhost:3000
+4. **Open Browser** → [http://localhost:3000](http://localhost:3000)
+
+## 🗂️ Category Manager — How It Works
+
+The Category Manager at `/categories` supports **unlimited nesting** (N-level hierarchy).
+
+### Data Flow
+```
+Admin Panel ──► POST /api/categories/admin/node ──► MongoDB
+                                                        │
+Mobile App ◄── GET  /api/categories/tree        ◄──────┘
+```
+
+### Admin UI
+| Action | How |
+|---|---|
+| Add root category | Click **"New Main Category"** footer button or header button |
+| Add sub-category | Select a node → click **"Add Sub Category"** card |
+| Drill into children | Select a node → click **"Browse Sub-categories"** |
+| Breadcrumb nav | Click any crumb in the top breadcrumb bar |
+| Edit name / icon | Hover row → click ✏️ pencil icon |
+| Enable / Disable | Hover row → click 👁 eye icon |
+| Delete (+ all descendants) | Hover row → click 🗑 trash icon |
+| Upload CSV | Select node → click **"Upload CSV"** card, drag-drop or browse |
+
+### CSV Upload Format
+Required columns: `businessName*`, `phone*`  
+Optional: `ownerName`, `description`, `whatsapp`, `email`, `website`, `area`, `city`, `state`, `pincode`, `landmark`, `listingType` (`free` or `promoted`)
+
+### Backend API Routes (new)
+| Method | Route | Description |
+|---|---|---|
+| `GET` | `/api/categories/tree` | Public full nested tree |
+| `GET` | `/api/categories/tree/admin` | Admin tree (includes inactive) |
+| `GET` | `/api/categories/:id/children` | Direct children of a node |
+| `POST` | `/api/categories/admin/node` | Create node at any level |
+| `PUT` | `/api/categories/admin/node/:id` | Update name / icon / isActive |
+| `DELETE` | `/api/categories/admin/node/:id` | Delete node + all descendants |
+| `POST` | `/api/categories/admin/node/:id/upload-csv` | Upload business listings CSV |
 
 ## 🌐 Deploy to Staging
 
 **See:** [STAGING_DEPLOYMENT_GUIDE.md](./STAGING_DEPLOYMENT_GUIDE.md) for complete instructions
 
 **Quick Deploy:**
-```powershell
-# Run the deployment script
-.\deploy-staging.ps1
-```
-
-**Or manually:**
 ```bash
 # Install Vercel CLI (first time only)
 npm install -g vercel
@@ -126,44 +165,31 @@ Login with your admin credentials. The admin key must match the backend's `ADMIN
 
 ## 📚 Documentation
 
-- [STAGING_DEPLOYMENT_GUIDE.md](./STAGING_DEPLOYMENT_GUIDE.md) - Complete staging deployment guide
-- [REFERRAL_SYSTEM_IMPLEMENTATION.md](./REFERRAL_SYSTEM_IMPLEMENTATION.md) - Referral system details
-- [RENDER_COLD_START_FIX.md](./RENDER_COLD_START_FIX.md) - Backend wake-up handling
+| File | Description |
+|---|---|
+| [STAGING_DEPLOYMENT_GUIDE.md](./STAGING_DEPLOYMENT_GUIDE.md) | Complete staging deployment guide |
+| [REFERRAL_SYSTEM_IMPLEMENTATION.md](./REFERRAL_SYSTEM_IMPLEMENTATION.md) | Referral system details |
+| [RENDER_COLD_START_FIX.md](./RENDER_COLD_START_FIX.md) | Backend wake-up handling |
 
 ## 🛠️ Development Scripts
 
 ```bash
-# Run local development
-npm run dev
-
-# Build for production
-npm run build
-
-# Start production server
-npm start
-
-# Deploy to staging
-npm run deploy:staging
-
-# Deploy to production
-npm run deploy:production
+npm run dev          # Start local dev server (Turbopack)
+npm run build        # Build for production
+npm start            # Start production server
+npm run lint         # Lint with ESLint
+npm run deploy:staging    # Deploy to Vercel staging
+npm run deploy:production # Deploy to Vercel production
 ```
 
 ## 🔧 Troubleshooting
 
-### Can't connect to backend
-- Verify backend URL in environment variables
-- Check if backend is running: `curl <backend-url>/health`
-- Review browser console for CORS errors
-
-### Unauthorized errors
-- Ensure `NEXT_PUBLIC_ADMIN_KEY` matches backend's `ADMIN_SECRET_KEY`
-- Check admin credentials are correct
-
-### Changes not reflecting
-- Clear browser cache
-- Check environment variables are set correctly
-- Verify backend received the update
+| Problem | Fix |
+|---|---|
+| Can't connect to backend | Verify `NEXT_PUBLIC_API_BASE` in `.env.local`; run `curl <backend-url>/health` |
+| Unauthorized errors | Ensure `NEXT_PUBLIC_ADMIN_KEY` matches backend's `ADMIN_SECRET_KEY` |
+| Changes not reflecting | Clear browser cache; verify env vars are set; check backend logs |
+| Category tree empty | Click **"Seed Defaults"** to populate 11 root categories from backend |
 
 ## 📞 Support
 
@@ -174,4 +200,4 @@ For issues or questions:
 
 ---
 
-Built with ❤️ using Next.js 15
+Built with ❤️ using Next.js 15 · TypeScript · Tailwind CSS · Lucide React

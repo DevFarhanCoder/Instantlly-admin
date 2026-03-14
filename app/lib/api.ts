@@ -160,6 +160,20 @@ export const api = {
     config?: AxiosRequestConfig,
     onWakeUpProgress?: (progress: WakeUpProgress) => void
   ) => apiRequest<T>(endpoint, { ...config, method: 'DELETE' }, onWakeUpProgress),
+
+  uploadImage: async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await axios.post(`${API_BASE}/api/admin/upload-image`, formData, {
+      headers: {
+        'x-admin-key': ADMIN_KEY,
+        'Content-Type': 'multipart/form-data',
+      },
+      timeout: 60000,
+    });
+    if (!response.data?.url) throw new Error(response.data?.message || 'Image upload failed');
+    return response.data.url;
+  },
 };
 
 export { API_BASE, ADMIN_KEY };

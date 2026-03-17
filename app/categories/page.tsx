@@ -16,6 +16,7 @@ import {
   Tag,
   Layers,
   AlertCircle,
+  AlertTriangle,
   CheckCircle,
   XCircle,
   Eye,
@@ -32,6 +33,9 @@ import {
   Building2,
   LayoutGrid,
   List,
+  Sparkles,
+  Link2,
+  Zap,
 } from "lucide-react";
 import AuthGuard from "../components/AuthGuard";
 import { api } from "../lib/api";
@@ -104,6 +108,194 @@ function useToast() {
     setTimeout(() => setToast(null), 3500);
   };
   return { toast, show };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Duplicate detection types (mirrors backend)
+// ─────────────────────────────────────────────────────────────
+interface DuplicateMatch {
+  _id: string;
+  name: string;
+  icon: string;
+  level: number;
+  matchType: "exact" | "case-insensitive" | "normalized-exact" | "similar";
+  similarity: number;
+  normalizedName: string;
+}
+
+interface DuplicateCheckResult {
+  normalizedInput: string;
+  previewName: string;
+  isDuplicate: boolean;
+  hasSimilar: boolean;
+  hasWarning: boolean;
+  exactMatch: DuplicateMatch | null;
+  similarMatches: DuplicateMatch[];
+}
+
+// ─────────────────────────────────────────────────────────────
+// useDuplicateCheck – debounced live duplicate detection hook
+// ─────────────────────────────────────────────────────────────
+function useDuplicateCheck(parentId: string | null) {
+  const [name, setName]         = useState("");
+  const [result, setResult]     = useState<DuplicateCheckResult | null>(null);
+  const [checking, setChecking] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const check = useCallback(
+    (inputName: string) => {
+      setName(inputName);
+      setResult(null);
+      if (!inputName.trim() || inputName.trim().length < 2) return;
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(async () => {
+        setChecking(true);
+        try {
+          const res = await api.post("/api/categories/admin/check-duplicate", {
+            name: inputName.trim(),
+            parent_id: parentId || null,
+          });
+          setResult(res as DuplicateCheckResult);
+        } catch {
+          // silently ignore check errors
+        } finally {
+          setChecking(false);
+        }
+      }, 400);
+    },
+    [parentId]
+  );
+
+  const reset = useCallback(() => {
+    setName("");
+    setResult(null);
+    setChecking(false);
+    if (timerRef.current) clearTimeout(timerRef.current);
+  }, []);
+
+  return { name, result, checking, check, reset };
+}
+
+// ─────────────────────────────────────────────────────────────
+// DuplicateWarningPanel – shown inside Add modals
+// ─────────────────────────────────────────────────────────────
+function DuplicateWarningPanel({
+  result,
+  checking,
+  force,
+  onForce,
+  onUseExisting,
+}: {
+  result: DuplicateCheckResult | null;
+  checking: boolean;
+  force: boolean;
+  onForce: () => void;
+  onUseExisting: (match: DuplicateMatch) => void;
+}) {
+  if (checking) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-gray-400 py-1">
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        Checking for duplicates…
+      </div>
+    );
+  }
+  if (!result) return null;
+
+  // ── Normalized preview badge (always shown when result available) ─────────
+  const preview = result.previewName;
+  const isReduced = preview && preview.toLowerCase() !== result.normalizedInput &&
+    result.normalizedInput !== "";
+
+  return (
+    <div className="space-y-2">
+      {/* Normalized name preview */}
+      {preview && (
+        <div className="flex items-center gap-2 text-xs">
+          <Sparkles className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+          <span className="text-gray-500">Normalized preview:</span>
+          <span className="font-semibold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-md">
+            {preview}
+          </span>
+          {isReduced && (
+            <span className="text-gray-400 italic">← stripped filler words</span>
+          )}
+        </div>
+      )}
+
+      {/* Exact duplicate warning */}
+      {result.isDuplicate && result.exactMatch && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <XCircle className="w-4 h-4 text-red-500 shrink-0" />
+            <span className="text-sm font-bold text-red-700">Duplicate detected</span>
+          </div>
+          <p className="text-xs text-red-600 mb-2">
+            <strong>&ldquo;{result.exactMatch.name}&rdquo;</strong> already exists (case-insensitive match).
+          </p>
+          <button
+            onClick={() => onUseExisting(result.exactMatch!)}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors font-medium"
+          >
+            <Link2 className="w-3 h-3" />
+            Use existing category instead
+          </button>
+        </div>
+      )}
+
+      {/* Similar categories warning */}
+      {!result.isDuplicate && result.hasSimilar && (
+        <div className={`border rounded-xl p-3 ${
+          force ? "bg-amber-50 border-amber-300" : "bg-amber-50 border-amber-200"
+        }`}>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+              <span className="text-sm font-bold text-amber-700">
+                Similar {result.similarMatches.length} categor{result.similarMatches.length === 1 ? "y" : "ies"} found
+              </span>
+            </div>
+            {!force ? (
+              <button
+                onClick={onForce}
+                className="flex items-center gap-1 text-xs px-2.5 py-1 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-colors font-semibold"
+              >
+                <Zap className="w-3 h-3" /> Create anyway
+              </button>
+            ) : (
+              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">✓ Will create new</span>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            {result.similarMatches.map((m) => (
+              <div key={m._id} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-amber-100">
+                <span className="text-base shrink-0">{m.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-semibold text-gray-800 truncate block">{m.name}</span>
+                  <span className="text-[10px] text-gray-400">
+                    {m.matchType === "normalized-exact" ? "Same core keyword" :
+                     m.matchType === "similar" ? `${Math.round(m.similarity * 100)}% similar` :
+                     m.matchType}
+                  </span>
+                </div>
+                <button
+                  onClick={() => onUseExisting(m)}
+                  className="flex items-center gap-1 text-xs px-2.5 py-1 bg-violet-100 text-violet-700 rounded-lg hover:bg-violet-200 transition-colors font-medium shrink-0"
+                >
+                  <Link2 className="w-3 h-3" /> Use this
+                </button>
+              </div>
+            ))}
+          </div>
+          {!force && (
+            <p className="text-[10px] text-amber-600 mt-2">
+              Click &ldquo;Create anyway&rdquo; above to create a new category despite the similarity.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -411,6 +603,10 @@ function CategoriesContent() {
   // ── search ──
   const [searchQuery, setSearchQuery] = useState("");
 
+  // ── Add-Node duplicate check ──
+  const [addNodeForce, setAddNodeForce]   = useState(false);
+  const dupCheckRoot = useDuplicateCheck(null);
+
   // ── Bulk Import state ──
   const [showBulkImport, setShowBulkImport]           = useState(false);
   const [bulkParsed, setBulkParsed]                   = useState<BulkImportData | null>(null);
@@ -591,31 +787,46 @@ function CategoriesContent() {
 
   const handleAddNode = async () => {
     if (!newNodeName.trim()) return;
+    // Block exact duplicates
+    if (dupCheckRoot.result?.isDuplicate && !addNodeForce) {
+      showToast("A duplicate category already exists. Use existing or rename.", "error");
+      return;
+    }
     setAddingNode(true);
     try {
       await api.post("/api/categories/admin/node", {
         name: newNodeName.trim(),
         icon: newNodeIcon || "📁",
         parent_id: parentIdForNewNode,
+        force: addNodeForce,
       });
       showToast(`"${newNodeName}" created`);
       setNewNodeName("");
       setNewNodeIcon("📁");
+      setAddNodeForce(false);
+      dupCheckRoot.reset();
       setShowAddNode(false);
       await refreshAndRestore();
     } catch (err: any) {
-      showToast(err?.response?.data?.error || "Failed to create", "error");
+      const errData = err?.response?.data;
+      // If backend returns similar-match warning and force was not set, surface suggestions
+      if (errData?.hasSimilar && !addNodeForce) {
+        showToast("Similar categories found. Review below or click 'Create anyway'.", "error");
+      } else {
+        showToast(errData?.error || "Failed to create", "error");
+      }
     } finally {
       setAddingNode(false);
     }
   };
 
-  const handleAddChildNode = async (parentNode: CategoryNode, childName: string, childIcon: string) => {
+  const handleAddChildNode = async (parentNode: CategoryNode, childName: string, childIcon: string, force?: boolean) => {
     try {
       await api.post("/api/categories/admin/node", {
         name: childName.trim(),
         icon: childIcon || "📁",
         parent_id: parentNode._id,
+        force: force ?? false,
       });
       showToast(`"${childName}" added under "${parentNode.name}"`);
       await refreshAndRestore();
@@ -945,7 +1156,7 @@ function CategoriesContent() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => { fetchTree(); fetchFlatCategories(); fetchCustomServices(); }} className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm transition-colors">
+          <button onClick={() => { fetchTree(); fetchFlatCategories(); fetchCustomServices(); dupCheckRoot.reset(); }} className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm transition-colors">
             <RefreshCw className="w-4 h-4" />
             Refresh
           </button>
@@ -1236,8 +1447,8 @@ function CategoriesContent() {
                   {actionPanel === "add-sub" && (
                     <AddSubCategoryPanel
                       parentNode={selectedNode}
-                      onAdd={async (name, icon) => {
-                        await handleAddChildNode(selectedNode, name, icon);
+                      onAdd={async (name, icon, force) => {
+                        await handleAddChildNode(selectedNode, name, icon, force);
                         setActionPanel(null);
                       }}
                       onCancel={() => setActionPanel(null)}
@@ -1417,13 +1628,56 @@ function CategoriesContent() {
       {showAddNode && (
         <Modal
           title={breadcrumb.length === 0 ? "Add New Main Category" : `Add Sub Category under "${breadcrumb[breadcrumb.length - 1].name}"`}
-          onClose={() => { setShowAddNode(false); setNewNodeName(""); setNewNodeIcon("📁"); }}
+          onClose={() => {
+            setShowAddNode(false);
+            setNewNodeName("");
+            setNewNodeIcon("📁");
+            setAddNodeForce(false);
+            dupCheckRoot.reset();
+          }}
         >
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Name <span className="text-red-500">*</span></label>
-              <input type="text" placeholder="e.g. Healthcare" value={newNodeName} onChange={(e) => setNewNodeName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAddNode()} className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-400 text-sm" autoFocus />
+              <input
+                type="text"
+                placeholder="e.g. Healthcare"
+                value={newNodeName}
+                onChange={(e) => {
+                  setNewNodeName(e.target.value);
+                  setAddNodeForce(false);
+                  dupCheckRoot.check(e.target.value);
+                }}
+                onKeyDown={(e) => e.key === "Enter" && handleAddNode()}
+                className={`w-full px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 text-sm ${
+                  dupCheckRoot.result?.isDuplicate
+                    ? "border-red-300 focus:ring-red-300"
+                    : dupCheckRoot.result?.hasSimilar && !addNodeForce
+                    ? "border-amber-300 focus:ring-amber-300"
+                    : "border-gray-300 focus:ring-violet-400"
+                }`}
+                autoFocus
+              />
             </div>
+
+            {/* Real-time duplicate/similar warning */}
+            <DuplicateWarningPanel
+              result={dupCheckRoot.result}
+              checking={dupCheckRoot.checking}
+              force={addNodeForce}
+              onForce={() => setAddNodeForce(true)}
+              onUseExisting={(match) => {
+                showToast(`Using existing category "${match.name}"`);
+                setShowAddNode(false);
+                setNewNodeName("");
+                setAddNodeForce(false);
+                dupCheckRoot.reset();
+                // Scroll to / select the existing node
+                const found = currentNodes.find((n) => n._id === match._id);
+                if (found) setSelectedNode(found);
+              }}
+            />
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Icon (emoji)</label>
               <input type="text" placeholder="📁" value={newNodeIcon} onChange={(e) => setNewNodeIcon(e.target.value)} className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-400 text-sm" />
@@ -1437,10 +1691,29 @@ function CategoriesContent() {
               </div>
             </div>
             <div className="flex justify-end gap-3 pt-2">
-              <button onClick={() => { setShowAddNode(false); setNewNodeName(""); setNewNodeIcon("📁"); }} className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">Cancel</button>
-              <button onClick={handleAddNode} disabled={addingNode || !newNodeName.trim()} className="flex items-center gap-2 px-5 py-2 bg-violet-600 text-white rounded-xl text-sm font-semibold hover:bg-violet-700 transition-colors disabled:opacity-50">
+              <button
+                onClick={() => {
+                  setShowAddNode(false);
+                  setNewNodeName("");
+                  setNewNodeIcon("📁");
+                  setAddNodeForce(false);
+                  dupCheckRoot.reset();
+                }}
+                className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddNode}
+                disabled={
+                  addingNode ||
+                  !newNodeName.trim() ||
+                  (dupCheckRoot.result?.isDuplicate ?? false)
+                }
+                className="flex items-center gap-2 px-5 py-2 bg-violet-600 text-white rounded-xl text-sm font-semibold hover:bg-violet-700 transition-colors disabled:opacity-50"
+              >
                 {addingNode ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                {breadcrumb.length === 0 ? "Add Category" : "Add Sub Category"}
+                {addNodeForce ? "Create Anyway" : breadcrumb.length === 0 ? "Add Category" : "Add Sub Category"}
               </button>
             </div>
           </div>
@@ -1548,19 +1821,26 @@ function AddSubCategoryPanel({
   onCancel,
 }: {
   parentNode: CategoryNode;
-  onAdd: (name: string, icon: string) => Promise<void>;
+  onAdd: (name: string, icon: string, force?: boolean) => Promise<void>;
   onCancel: () => void;
 }) {
-  const [name, setName] = useState("");
-  const [icon, setIcon] = useState("📁");
-  const [adding, setAdding] = useState(false);
+  const [name, setName]   = useState("");
+  const [icon, setIcon]   = useState("📁");
+  const [adding, setAdding]     = useState(false);
+  const [force, setForce]       = useState(false);
   const EMOJIS = ["📌","✈️","💻","🛒","🔑","💄","⚕️","🎓","🔨","🚗","🔧","💼","🏥","🍕","🌿","🎨","🏠","🔖","⚡","🎯"];
+
+  const dupCheck = useDuplicateCheck(parentNode._id);
 
   const handleAdd = async () => {
     if (!name.trim()) return;
+    if (dupCheck.result?.isDuplicate && !force) return;
     setAdding(true);
-    try { await onAdd(name.trim(), icon); }
-    finally { setAdding(false); }
+    try {
+      await onAdd(name.trim(), icon, force);
+    } finally {
+      setAdding(false);
+    }
   };
 
   return (
@@ -1579,9 +1859,19 @@ function AddSubCategoryPanel({
               type="text"
               placeholder="e.g. Dentists"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setForce(false);
+                dupCheck.check(e.target.value);
+              }}
               onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-300"
+              className={`w-full px-3 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 ${
+                dupCheck.result?.isDuplicate
+                  ? "border-red-300 focus:ring-red-300"
+                  : dupCheck.result?.hasSimilar && !force
+                  ? "border-amber-300 focus:ring-amber-300"
+                  : "border-gray-200 focus:ring-violet-300"
+              }`}
               autoFocus
             />
           </div>
@@ -1596,15 +1886,32 @@ function AddSubCategoryPanel({
             />
           </div>
         </div>
+
+        {/* Duplicate warning */}
+        <DuplicateWarningPanel
+          result={dupCheck.result}
+          checking={dupCheck.checking}
+          force={force}
+          onForce={() => setForce(true)}
+          onUseExisting={(_match) => {
+            // Just close the panel — the parent already exists
+            onCancel();
+          }}
+        />
+
         <div className="flex flex-wrap gap-1.5">
           {EMOJIS.map((e) => (
             <button key={e} onClick={() => setIcon(e)} className={`w-8 h-8 rounded-lg text-base flex items-center justify-center transition-all ${icon === e ? "bg-violet-100 ring-2 ring-violet-400" : "bg-gray-100 hover:bg-gray-200"}`}>{e}</button>
           ))}
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={handleAdd} disabled={adding || !name.trim()} className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-xl text-sm font-semibold hover:bg-violet-700 transition-colors disabled:opacity-50">
+          <button
+            onClick={handleAdd}
+            disabled={adding || !name.trim() || (dupCheck.result?.isDuplicate ?? false)}
+            className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-xl text-sm font-semibold hover:bg-violet-700 transition-colors disabled:opacity-50"
+          >
             {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-            Add Sub Category
+            {force ? "Create Anyway" : "Add Sub Category"}
           </button>
           <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-500 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">Cancel</button>
         </div>
@@ -1798,6 +2105,26 @@ function BulkImportModal({
                         const emoji = bulkEmojiOverrides[catName] ?? mc.emoji;
                         const subCount = Object.keys(mc.subCats).length;
                         const bizCount = Object.values(mc.subCats).reduce((acc, s) => acc + s.rows.length, 0);
+                        // Compute normalized preview for display
+                        const normalizedPreviewStr = catName
+                          .toLowerCase()
+                          .replace(/[&/\\|\-_.,;:!?()'"+@#%*[\]{}<>]+/g, " ")
+                          .split(" ")
+                          .map((w) => w.trim())
+                          .filter((w) => w.length > 1 && !new Set([
+                            "best","top","great","good","cheap","affordable","premium",
+                            "trusted","famous","popular","leading","certified",
+                            "near","me","nearby","around","local","online","in","at",
+                            "city","town","india","services","service","solutions",
+                            "solution","providers","provider","experts","expert",
+                            "professionals","professional","agents","agent","dealers",
+                            "dealer","shops","shop","stores","store","centres","centre",
+                            "centers","center","specialists","specialist","and","or","the",
+                            "a","an","of","with","by","for","to",
+                          ]).has(w))
+                          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                          .join(" ");
+                        const isReduced = normalizedPreviewStr && normalizedPreviewStr.toLowerCase() !== catName.toLowerCase();
                         return (
                           <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 group">
                             {/* Editable emoji */}
@@ -1809,7 +2136,15 @@ function BulkImportModal({
                               title="Edit emoji"
                             />
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-gray-800 truncate">{catName}</p>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-semibold text-gray-800 truncate">{catName}</p>
+                                {isReduced && normalizedPreviewStr && (
+                                  <span className="flex items-center gap-1 text-[10px] bg-violet-50 text-violet-600 px-1.5 py-0.5 rounded-full font-medium shrink-0">
+                                    <Sparkles className="w-2.5 h-2.5" />
+                                    {normalizedPreviewStr}
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-xs text-gray-400">
                                 {subCount} sub-categories · {bizCount.toLocaleString()} businesses
                               </p>
@@ -1849,9 +2184,19 @@ function BulkImportModal({
         {/* ── Footer ── */}
         {!bulkImporting && (
           <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex items-center justify-between">
-            <p className="text-xs text-gray-400">
-              {bulkResults ? "Refresh the category tree to see your new categories." : "Existing categories with the same name will be skipped."}
-            </p>
+            <div className="text-xs text-gray-400 space-y-0.5">
+              {bulkResults ? (
+                <p>Refresh the category tree to see your new categories.</p>
+              ) : (
+                <>
+                  <p className="flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-violet-400 shrink-0" />
+                    Names are <strong>normalized</strong> (filler words removed) before duplicate check.
+                  </p>
+                  <p>Existing categories with the same core name are <strong>reused</strong> automatically.</p>
+                </>
+              )}
+            </div>
             <div className="flex gap-3">
               <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors">
                 {bulkResults ? "Close" : "Cancel"}

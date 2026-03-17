@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local data files — not part of this repo
+*.csv
+*.numbers
+.vscode/

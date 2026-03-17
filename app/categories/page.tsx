@@ -82,6 +82,19 @@ interface BreadcrumbEntry {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Bulk Import Types
+// ─────────────────────────────────────────────────────────────
+interface BulkRow { businessName: string; area: string; phone: string; city: string; }
+interface BulkSubCatData { rows: BulkRow[]; }
+interface BulkMainCatData { emoji: string; subCats: Record<string, BulkSubCatData>; }
+interface BulkImportData {
+  mainCats: Record<string, BulkMainCatData>;
+  totalBiz: number;
+  mainCatCount: number;
+  subCatCount: number;
+}
+
+// ─────────────────────────────────────────────────────────────
 // Toast helper
 // ─────────────────────────────────────────────────────────────
 function useToast() {
@@ -119,6 +132,214 @@ function parseCSVText(text: string): { headers: string[]; rows: Record<string, s
     return row;
   });
   return { headers, rows };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Emoji map for known main categories
+// ─────────────────────────────────────────────────────────────
+const CATEGORY_EMOJI_MAP: Record<string, string> = {
+  "ac & appliances": "❄️",
+  "agriculture": "🌾",
+  "apprael & fashion": "👗",
+  "apparel & fashion": "👗",
+  "astrology & spiritual": "🔮",
+  "automotive": "🚗",
+  "baby care & products": "🍼",
+  "baby care": "🍼",
+  "beauty & wellness": "💄",
+  "business services": "💼",
+  "chemical & industrial supplies": "⚗️",
+  "cinemas & entertainment": "🎬",
+  "education": "🎓",
+  "electronics": "📱",
+  "food & dining": "🍕",
+  "food & restaurant": "🍕",
+  "restaurants": "🍽️",
+  "health & medical": "🏥",
+  "home services": "🏠",
+  "home & decor": "🛋️",
+  "hotels & travel": "✈️",
+  "travel": "✈️",
+  "legal services": "⚖️",
+  "real estate": "🏗️",
+  "sports & fitness": "💪",
+  "transport": "🚌",
+  "finance": "💰",
+  "insurance": "🛡️",
+  "construction": "🔨",
+  "cleaning services": "🧹",
+  "pet care": "🐾",
+  "events": "🎉",
+  "photography": "📷",
+  "plumbing": "🔧",
+  "electrical": "⚡",
+  "painting": "🎨",
+  "catering": "🍽️",
+  "wedding": "💍",
+  "florist": "🌸",
+  "grocery": "🛒",
+  "pharmacy": "💊",
+  "hospital": "🏥",
+  "dentist": "🦷",
+  "gym": "🏋️",
+  "yoga": "🧘",
+  "spa": "💆",
+  "hair salon": "💈",
+  "tailoring": "🧵",
+  "shoes": "👟",
+  "jewelry": "💎",
+  "furniture": "🛋️",
+  "books": "📚",
+  "music": "🎵",
+  "gaming": "🎮",
+  "packers & movers": "📦",
+  "courier": "📬",
+  "it services": "💻",
+  "software": "💻",
+  "security": "🔒",
+};
+
+// ─────────────────────────────────────────────────────────────
+// Fuzzy category-name matching helpers
+// ─────────────────────────────────────────────────────────────
+/** Lowercase + strip punctuation → spaces + collapse whitespace */
+function normalizeCatName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[&/\\|\-_.,;:!?()'"+@#%*[\]{}]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const CAT_STOP_WORDS = new Set(["and", "or", "the", "a", "an", "of", "in", "at", "for", "to", "with", "by"]);
+function catNameWords(name: string): Set<string> {
+  return new Set(
+    normalizeCatName(name)
+      .split(" ")
+      .filter((w) => w.length > 1 && !CAT_STOP_WORDS.has(w))
+  );
+}
+
+/**
+ * Returns true when two category names have the same meaning:
+ *   1. Identical after normalization
+ *   2. One is a substring of the other ("Hotels" ⊂ "Hotels & Restaurants")
+ *   3. Jaccard word-set similarity ≥ 0.55 ("Auto Repair" vs "Auto Repairs")
+ */
+function fuzzyMatchCatNames(a: string, b: string): boolean {
+  const na = normalizeCatName(a);
+  const nb = normalizeCatName(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  if (na.includes(nb) || nb.includes(na)) return true;
+  const wa = catNameWords(a);
+  const wb = catNameWords(b);
+  if (wa.size === 0 || wb.size === 0) return false;
+  const intersection = [...wa].filter((w) => wb.has(w)).length;
+  const union = new Set([...wa, ...wb]).size;
+  return intersection / union >= 0.55;
+}
+
+/**
+ * Search a name→id map using fuzzy matching.
+ * Returns the matched ID, or null if nothing matches.
+ */
+function fuzzyFindInMap(map: Record<string, string>, name: string): string | null {
+  // 1. Exact key first (fast path)
+  const exact = map[normalizeCatName(name)];
+  if (exact) return exact;
+  // 2. Fuzzy scan
+  for (const [key, id] of Object.entries(map)) {
+    if (fuzzyMatchCatNames(key, name)) return id;
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Bulk CSV Parser – handles the special format:
+//   _, Name, locatcity, Main Category, Sub Category, Mobile no, City
+// ─────────────────────────────────────────────────────────────
+function parseBulkCSV(text: string): BulkImportData | null {
+  const lines = text.split("\n");
+
+  const splitLine = (line: string): string[] => {
+    const result: string[] = [];
+    let cur = "";
+    let inQ = false;
+    for (const ch of line) {
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === "," && !inQ) { result.push(cur.trim()); cur = ""; }
+      else { cur += ch; }
+    }
+    result.push(cur.trim());
+    return result.map(c => c.replace(/^"|"$/g, "").trim());
+  };
+
+  // Find the header row (must contain both "name" and "main category")
+  let headerIdx = -1;
+  let headerCols: string[] = [];
+  for (let i = 0; i < Math.min(25, lines.length); i++) {
+    const cols = splitLine(lines[i]);
+    if (
+      cols.some(c => c.toLowerCase() === "name") &&
+      cols.some(c => c.toLowerCase().includes("main category"))
+    ) {
+      headerIdx = i;
+      headerCols = cols;
+      break;
+    }
+  }
+  if (headerIdx === -1) return null;
+
+  const nameIdx     = headerCols.findIndex(c => c.toLowerCase() === "name");
+  const addressIdx  = headerCols.findIndex(c => c.toLowerCase().includes("locat"));
+  const mainCatIdx  = headerCols.findIndex(c => c.toLowerCase().includes("main category"));
+  const subCatIdx   = headerCols.findIndex(c => c.toLowerCase().includes("sub category"));
+  const phoneIdx    = headerCols.findIndex(c => c.toLowerCase().includes("mobile"));
+  const cityIdx     = headerCols.findIndex(c => c.toLowerCase() === "city");
+
+  const mainCats: Record<string, BulkMainCatData> = {};
+  let totalBiz = 0;
+
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    const cols = splitLine(line);
+    const mainCat = mainCatIdx >= 0 ? cols[mainCatIdx] : "";
+    const name    = nameIdx >= 0 ? cols[nameIdx] : "";
+    if (!mainCat || !name) continue;
+
+    const subCat  = (subCatIdx >= 0 ? cols[subCatIdx] : "") || "General";
+    const address = addressIdx >= 0 ? cols[addressIdx] : "";
+    const phone   = phoneIdx >= 0 ? cols[phoneIdx] : "";
+    const city    = cityIdx >= 0 ? cols[cityIdx] : "";
+    // Keep any phone value as-is; only truly blank cells become empty
+    const cleanPhone = phone.toLowerCase().startsWith("show") ? phone : phone;
+
+    if (!mainCats[mainCat]) {
+      mainCats[mainCat] = {
+        emoji: CATEGORY_EMOJI_MAP[mainCat.toLowerCase()] || "📁",
+        subCats: {},
+      };
+    }
+    if (!mainCats[mainCat].subCats[subCat]) {
+      mainCats[mainCat].subCats[subCat] = { rows: [] };
+    }
+    mainCats[mainCat].subCats[subCat].rows.push({
+      businessName: name,
+      area: address,   // backend expects "area"
+      phone: cleanPhone,
+      city,
+    });
+    totalBiz++;
+  }
+
+  const mainCatCount = Object.keys(mainCats).length;
+  let subCatCount = 0;
+  for (const mc of Object.values(mainCats)) {
+    subCatCount += Object.keys(mc.subCats).length;
+  }
+  return { mainCats, totalBiz, mainCatCount, subCatCount };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -189,6 +410,16 @@ function CategoriesContent() {
 
   // ── search ──
   const [searchQuery, setSearchQuery] = useState("");
+
+  // ── Bulk Import state ──
+  const [showBulkImport, setShowBulkImport]           = useState(false);
+  const [bulkParsed, setBulkParsed]                   = useState<BulkImportData | null>(null);
+  const [bulkFileName, setBulkFileName]               = useState("");
+  const [bulkImporting, setBulkImporting]             = useState(false);
+  const [bulkProgress, setBulkProgress]               = useState({ done: 0, total: 0, current: "" });
+  const [bulkUploadBusinesses, setBulkUploadBusinesses] = useState(true);
+  const [bulkEmojiOverrides, setBulkEmojiOverrides]   = useState<Record<string, string>>({});
+  const [bulkResults, setBulkResults]                 = useState<{ created: number; skipped: number; errors: string[] } | null>(null);
 
   // ─────────────────────────────────────────────────────────
   // Fetch
@@ -497,6 +728,171 @@ function CategoriesContent() {
   };
 
   // ─────────────────────────────────────────────────────────
+  // Bulk Import handler
+  // ─────────────────────────────────────────────────────────
+  const handleBulkImport = async () => {
+    if (!bulkParsed) return;
+    setBulkImporting(true);
+    setBulkResults(null);
+
+    const { mainCats } = bulkParsed;
+    const mainCatNames = Object.keys(mainCats);
+    const results = { created: 0, skipped: 0, errors: [] as string[] };
+
+    // ── Step 1: Fetch fresh flat category list to get real IDs ──────────────
+    setBulkProgress({ done: 0, total: 1, current: "Fetching existing categories…" });
+    let freshAll: FlatCategory[] = [];
+    try {
+      const res = await api.get("/api/categories/admin/all");
+      freshAll = res.data || [];
+    } catch { /* proceed anyway */ }
+
+    // Build root category lookup: normalizedName → _id  (fuzzy-searchable)
+    const freshMainMap: Record<string, string> = {};
+    for (const c of freshAll) {
+      if (!c.parent_id) freshMainMap[normalizeCatName(c.name.trim())] = c._id;
+    }
+
+    // ── Calculate total steps ────────────────────────────────────────────────
+    let totalSteps = mainCatNames.length;
+    for (const mc of Object.values(mainCats)) {
+      totalSteps += Object.keys(mc.subCats).length;
+      if (bulkUploadBusinesses) {
+        for (const sub of Object.values(mc.subCats)) {
+          if (sub.rows.length > 0) totalSteps++;
+        }
+      }
+    }
+    let done = 0;
+    setBulkProgress({ done: 0, total: totalSteps, current: "Starting…" });
+
+    // Helper: run promises in parallel batches
+    const batchRun = async <T,>(items: T[], concurrency: number, fn: (item: T) => Promise<void>) => {
+      for (let i = 0; i < items.length; i += concurrency) {
+        await Promise.all(items.slice(i, i + concurrency).map(fn));
+      }
+    };
+
+    for (const mainCatName of mainCatNames) {
+      const mc = mainCats[mainCatName];
+      const finalEmoji = bulkEmojiOverrides[mainCatName] ?? mc.emoji;
+
+      setBulkProgress({ done, total: totalSteps, current: `Resolving: ${mainCatName}` });
+
+      // ── Find or create main cat ────────────────────────────────────────────
+      // Use fuzzy lookup: "Travel" matches existing "Travel & Tourism" etc.
+      let mainId: string | null = fuzzyFindInMap(freshMainMap, mainCatName);
+      if (!mainId) {
+        try {
+          const res: any = await api.post("/api/categories/admin/node", {
+            name: mainCatName, icon: finalEmoji, parent_id: null,
+          });
+          // Backend now returns wasExisting:true when fuzzy/exact match found
+          mainId = (res?.data ?? res?.category ?? res)?._id ?? null;
+          if (mainId) freshMainMap[normalizeCatName(mainCatName)] = mainId;
+          if (res?.wasExisting) {
+            results.skipped++;
+          } else {
+            results.created++;
+          }
+        } catch (err: any) {
+          if (err?.response?.status === 409) {
+            // Legacy fallback: re-fetch to get the existing ID
+            try {
+              const re = await api.get("/api/categories/admin/all");
+              const all: FlatCategory[] = re.data || [];
+              for (const c of all) {
+                if (!c.parent_id && fuzzyMatchCatNames(c.name.trim(), mainCatName)) {
+                  mainId = c._id;
+                  freshMainMap[normalizeCatName(c.name.trim())] = c._id;
+                  break;
+                }
+              }
+            } catch { /* ignore */ }
+            results.skipped++;
+          } else {
+            results.errors.push(`Main "${mainCatName}": ${err?.response?.data?.error ?? err.message}`);
+          }
+        }
+      } else {
+        results.skipped++;
+      }
+
+      done++;
+      setBulkProgress({ done, total: totalSteps, current: `✓ ${mainCatName}` });
+      if (!mainId) continue;
+
+      // ── Fetch real sub-cat nodes for this main cat (live from server) ────────
+      // Keys stored as normalizeCatName(name) for fuzzy-searchable lookup
+      const existingSubMap: Record<string, string> = {};
+      try {
+        const childRes = await api.get(`/api/categories/${mainId}/children`);
+        const children: any[] = childRes.data || [];
+        for (const child of children) {
+          existingSubMap[normalizeCatName(child.name.trim())] = child._id;
+        }
+      } catch { /* proceed */ }
+
+      const subCatNames = Object.keys(mc.subCats);
+
+      // ── Create missing sub-cat nodes in parallel batches of 8 ─────────────
+      // Use fuzzy lookup so "Hotels" matches existing "Hotels & Restaurants"
+      const toCreate = subCatNames.filter(s => !fuzzyFindInMap(existingSubMap, s));
+      const toSkip   = subCatNames.filter(s =>  fuzzyFindInMap(existingSubMap, s));
+      results.skipped += toSkip.length;
+
+      await batchRun(toCreate, 8, async (subCatName) => {
+        try {
+          const res: any = await api.post("/api/categories/admin/node", {
+            name: subCatName, icon: "📌", parent_id: mainId,
+          });
+          const newId = (res?.data ?? res?.category ?? res)?._id ?? null;
+          if (newId) existingSubMap[normalizeCatName(subCatName)] = newId;
+          if (res?.wasExisting) {
+            results.skipped++;
+          } else {
+            results.created++;
+          }
+        } catch (err: any) {
+          if (err?.response?.status === 409) {
+            results.skipped++;
+          } else {
+            results.errors.push(`Sub "${subCatName}": ${err?.response?.data?.error ?? err.message}`);
+          }
+        }
+        done++;
+        setBulkProgress({ done, total: totalSteps, current: `Sub-cats: ${done}/${totalSteps}` });
+      });
+
+      // ── Upload businesses in parallel batches of 6 ───────────────────────
+      if (bulkUploadBusinesses) {
+        const uploadEntries = subCatNames
+          .map(s => ({ subName: s, subId: fuzzyFindInMap(existingSubMap, s), rows: mc.subCats[s].rows }))
+          .filter(e => e.subId && e.rows.length > 0);
+
+        await batchRun(uploadEntries, 6, async ({ subName, subId, rows }) => {
+          try {
+            const uploadRes: any = await api.post(
+              `/api/categories/admin/node/${subId}/upload-csv`,
+              { rows }
+            );
+            results.created += uploadRes?.created ?? rows.length;
+          } catch (err: any) {
+            results.errors.push(`Upload "${subName}": ${err?.response?.data?.error ?? err.message}`);
+          }
+          done++;
+          setBulkProgress({ done, total: totalSteps, current: `Uploading businesses: ${done}/${totalSteps}` });
+        });
+      }
+    }
+
+    setBulkImporting(false);
+    setBulkResults(results);
+    await fetchTree();
+    await fetchFlatCategories();
+  };
+
+  // ─────────────────────────────────────────────────────────
   // Derived
   // ─────────────────────────────────────────────────────────
   const allFlat = flattenTree(tree);
@@ -556,6 +952,13 @@ function CategoriesContent() {
           <button onClick={handleSeed} disabled={seeding} className="flex items-center gap-2 px-3 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-sm font-medium disabled:opacity-50 transition-colors">
             {seeding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
             Seed Defaults
+          </button>
+          <button
+            onClick={() => { setShowBulkImport(true); setBulkParsed(null); setBulkFileName(""); setBulkResults(null); setBulkEmojiOverrides({}); }}
+            className="flex items-center gap-2 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-semibold transition-colors"
+          >
+            <Upload className="w-4 h-4" />
+            Bulk Import CSV
           </button>
           <button onClick={() => setShowAddNode(true)} className="flex items-center gap-2 px-3 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 text-sm font-semibold transition-colors">
             <Plus className="w-4 h-4" />
@@ -1100,6 +1503,36 @@ function CategoriesContent() {
           </div>
         </Modal>
       )}
+
+      {/* ══════════════════════════════════════════════════
+          MODAL: Bulk Import CSV
+      ══════════════════════════════════════════════════ */}
+      {showBulkImport && (
+        <BulkImportModal
+          onClose={() => { if (!bulkImporting) setShowBulkImport(false); }}
+          bulkParsed={bulkParsed}
+          bulkFileName={bulkFileName}
+          bulkImporting={bulkImporting}
+          bulkProgress={bulkProgress}
+          bulkUploadBusinesses={bulkUploadBusinesses}
+          setBulkUploadBusinesses={setBulkUploadBusinesses}
+          bulkEmojiOverrides={bulkEmojiOverrides}
+          setBulkEmojiOverrides={setBulkEmojiOverrides}
+          bulkResults={bulkResults}
+          onFileSelect={(file: File) => {
+            setBulkFileName(file.name);
+            setBulkResults(null);
+            setBulkEmojiOverrides({});
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const parsed = parseBulkCSV(e.target?.result as string);
+              setBulkParsed(parsed);
+            };
+            reader.readAsText(file);
+          }}
+          onImport={handleBulkImport}
+        />
+      )}
     </div>
   );
 }
@@ -1175,6 +1608,266 @@ function AddSubCategoryPanel({
           </button>
           <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-500 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">Cancel</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// BulkImportModal – full bulk CSV import with progress & results
+// ─────────────────────────────────────────────────────────────
+function BulkImportModal({
+  onClose,
+  bulkParsed,
+  bulkFileName,
+  bulkImporting,
+  bulkProgress,
+  bulkUploadBusinesses,
+  setBulkUploadBusinesses,
+  bulkEmojiOverrides,
+  setBulkEmojiOverrides,
+  bulkResults,
+  onFileSelect,
+  onImport,
+}: {
+  onClose: () => void;
+  bulkParsed: BulkImportData | null;
+  bulkFileName: string;
+  bulkImporting: boolean;
+  bulkProgress: { done: number; total: number; current: string };
+  bulkUploadBusinesses: boolean;
+  setBulkUploadBusinesses: (v: boolean) => void;
+  bulkEmojiOverrides: Record<string, string>;
+  setBulkEmojiOverrides: (v: Record<string, string>) => void;
+  bulkResults: { created: number; skipped: number; errors: string[] } | null;
+  onFileSelect: (file: File) => void;
+  onImport: () => void;
+}) {
+  const pct = bulkProgress.total > 0 ? Math.round((bulkProgress.done / bulkProgress.total) * 100) : 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="bg-indigo-100 p-2.5 rounded-xl">
+              <Upload className="w-5 h-5 text-indigo-600" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Bulk Import CSV</h3>
+              <p className="text-xs text-gray-400">Auto-creates main categories, sub-categories & uploads business listings</p>
+            </div>
+          </div>
+          <button onClick={onClose} disabled={bulkImporting} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-40">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        {/* ── Body ── */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+
+          {/* Results panel */}
+          {bulkResults && !bulkImporting && (
+            <div className={`rounded-xl p-4 border ${bulkResults.errors.length === 0 ? "bg-green-50 border-green-200" : "bg-amber-50 border-amber-200"}`}>
+              <div className="flex items-center gap-2 mb-2">
+                {bulkResults.errors.length === 0
+                  ? <CheckCircle className="w-5 h-5 text-green-600" />
+                  : <AlertCircle className="w-5 h-5 text-amber-600" />}
+                <span className="font-bold text-sm text-gray-900">
+                  {bulkResults.errors.length === 0 ? "Import complete!" : "Import complete with warnings"}
+                </span>
+              </div>
+              <div className="flex gap-5 text-sm mb-2">
+                <span className="text-green-700 font-medium">✓ {bulkResults.created.toLocaleString()} items created</span>
+                <span className="text-gray-500">↷ {bulkResults.skipped} already existed</span>
+              </div>
+              {bulkResults.errors.length > 0 && (
+                <div className="mt-2 max-h-32 overflow-y-auto border border-amber-200 rounded-lg bg-white p-2">
+                  {bulkResults.errors.map((e, i) => (
+                    <p key={i} className="text-xs text-red-600 py-0.5">• {e}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Progress panel */}
+          {bulkImporting && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+                  <span className="text-sm font-bold text-indigo-700">Importing…</span>
+                </div>
+                <span className="text-sm font-bold text-indigo-700">{pct}%</span>
+              </div>
+              <div className="w-full bg-indigo-100 rounded-full h-3 mb-3 overflow-hidden">
+                <div
+                  className="bg-indigo-600 h-3 rounded-full transition-all duration-500"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <p className="text-xs font-medium text-indigo-700 truncate">{bulkProgress.current}</p>
+              <p className="text-xs text-indigo-400 mt-0.5">{bulkProgress.done} / {bulkProgress.total} steps done</p>
+            </div>
+          )}
+
+          {/* File upload + config (hidden while importing or after results) */}
+          {!bulkImporting && !bulkResults && (
+            <>
+              {/* Step 1 – File */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">1</span>
+                  <p className="text-sm font-semibold text-gray-700">Select your CSV file</p>
+                </div>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3">
+                  <p className="text-xs font-semibold text-amber-800 mb-1 flex items-center gap-1">
+                    <FileText className="w-3.5 h-3.5" /> Expected column format
+                  </p>
+                  <p className="text-xs text-amber-700 font-mono">_, Name, locatcity (address), Main Category, Sub Category, Mobile no, City</p>
+                  <p className="text-xs text-amber-600 mt-1">The header row is auto-detected — blank/numeric leading rows are skipped automatically.</p>
+                </div>
+                <label className={`flex flex-col items-center justify-center gap-3 w-full py-7 border-2 border-dashed rounded-xl cursor-pointer transition-all ${bulkFileName ? "border-indigo-300 bg-indigo-50" : "border-gray-200 hover:border-indigo-300 hover:bg-indigo-50"}`}>
+                  <input type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFileSelect(f); }} />
+                  {bulkFileName ? (
+                    <>
+                      <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center">
+                        <FileText className="w-6 h-6 text-indigo-600" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-semibold text-indigo-700">{bulkFileName}</p>
+                        {bulkParsed ? (
+                          <p className="text-xs text-indigo-500 mt-0.5">
+                            {bulkParsed.mainCatCount} main categories · {bulkParsed.subCatCount} sub-categories · {bulkParsed.totalBiz.toLocaleString()} businesses
+                          </p>
+                        ) : (
+                          <p className="text-xs text-red-500 mt-0.5">Could not parse. Ensure the file matches the expected format.</p>
+                        )}
+                      </div>
+                      <span className="text-xs text-gray-400 underline cursor-pointer">Replace file</span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
+                        <Upload className="w-6 h-6 text-gray-400" />
+                      </div>
+                      <p className="text-sm text-gray-500">Drop CSV or click to browse</p>
+                    </>
+                  )}
+                </label>
+              </div>
+
+              {bulkParsed && (
+                <>
+                  {/* Step 2 – Options */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">2</span>
+                      <p className="text-sm font-semibold text-gray-700">Configure import options</p>
+                    </div>
+                    <label className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl cursor-pointer hover:bg-emerald-100 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={bulkUploadBusinesses}
+                        onChange={(e) => setBulkUploadBusinesses(e.target.checked)}
+                        className="w-4 h-4 accent-emerald-600 shrink-0"
+                      />
+                      <div>
+                        <p className="text-sm font-bold text-emerald-800">Upload business listings</p>
+                        <p className="text-xs text-emerald-600">
+                          Attach {bulkParsed.totalBiz.toLocaleString()} businesses to their sub-categories (name, address, phone, city)
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+
+                  {/* Step 3 – Preview */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">3</span>
+                      <p className="text-sm font-semibold text-gray-700">
+                        Preview — {bulkParsed.mainCatCount} main categories &nbsp;
+                        <span className="text-gray-400 font-normal">(edit emoji if needed)</span>
+                      </p>
+                    </div>
+                    <div className="border border-gray-200 rounded-xl overflow-hidden max-h-64 overflow-y-auto">
+                      {Object.entries(bulkParsed.mainCats).map(([catName, mc], i) => {
+                        const emoji = bulkEmojiOverrides[catName] ?? mc.emoji;
+                        const subCount = Object.keys(mc.subCats).length;
+                        const bizCount = Object.values(mc.subCats).reduce((acc, s) => acc + s.rows.length, 0);
+                        return (
+                          <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 group">
+                            {/* Editable emoji */}
+                            <input
+                              type="text"
+                              value={emoji}
+                              onChange={(e) => setBulkEmojiOverrides({ ...bulkEmojiOverrides, [catName]: e.target.value })}
+                              className="w-10 h-10 text-center text-xl border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 shrink-0 bg-white"
+                              title="Edit emoji"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-gray-800 truncate">{catName}</p>
+                              <p className="text-xs text-gray-400">
+                                {subCount} sub-categories · {bizCount.toLocaleString()} businesses
+                              </p>
+                            </div>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              emoji === mc.emoji
+                                ? "bg-indigo-50 text-indigo-600"
+                                : "bg-amber-50 text-amber-600"
+                            }`}>
+                              {emoji === mc.emoji ? "auto" : "custom"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Summary banner */}
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: "Main Categories", value: bulkParsed.mainCatCount, color: "bg-violet-50 border-violet-100 text-violet-700" },
+                      { label: "Sub-Categories", value: bulkParsed.subCatCount, color: "bg-blue-50 border-blue-100 text-blue-700" },
+                      { label: "Business Listings", value: bulkUploadBusinesses ? bulkParsed.totalBiz.toLocaleString() : "—", color: "bg-emerald-50 border-emerald-100 text-emerald-700" },
+                    ].map((s) => (
+                      <div key={s.label} className={`${s.color} border rounded-xl p-3 text-center`}>
+                        <p className="text-xl font-bold">{s.value}</p>
+                        <p className="text-xs font-medium mt-0.5">{s.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* ── Footer ── */}
+        {!bulkImporting && (
+          <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex items-center justify-between">
+            <p className="text-xs text-gray-400">
+              {bulkResults ? "Refresh the category tree to see your new categories." : "Existing categories with the same name will be skipped."}
+            </p>
+            <div className="flex gap-3">
+              <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors">
+                {bulkResults ? "Close" : "Cancel"}
+              </button>
+              {!bulkResults && bulkParsed && (
+                <button
+                  onClick={onImport}
+                  className="flex items-center gap-2 px-5 py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors"
+                >
+                  <Upload className="w-4 h-4" />
+                  Start Import
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

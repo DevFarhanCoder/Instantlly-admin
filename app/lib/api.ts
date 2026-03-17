@@ -160,6 +160,12 @@ export const api = {
     config?: AxiosRequestConfig,
     onWakeUpProgress?: (progress: WakeUpProgress) => void
   ) => apiRequest<T>(endpoint, { ...config, method: 'DELETE' }, onWakeUpProgress),
+
+  uploadImage: async (_file: File): Promise<string> => {
+    throw new Error(
+      'Image upload is not configured in this admin build yet. Please use a direct image URL for now.'
+    );
+  },
 };
 
 export { API_BASE, ADMIN_KEY };

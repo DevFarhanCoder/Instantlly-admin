@@ -89,13 +89,15 @@ interface BreadcrumbEntry {
 // Bulk Import Types
 // ─────────────────────────────────────────────────────────────
 interface BulkRow { businessName: string; area: string; phone: string; city: string; }
-interface BulkSubCatData { rows: BulkRow[]; }
-interface BulkMainCatData { emoji: string; subCats: Record<string, BulkSubCatData>; }
+// N-level recursive node — each node can have its own businesses + sub-nodes
+interface BulkCatNode { emoji: string; rows: BulkRow[]; children: Record<string, BulkCatNode>; }
 interface BulkImportData {
-  mainCats: Record<string, BulkMainCatData>;
+  tree: Record<string, BulkCatNode>;   // root cat name → node (N-level recursive)
   totalBiz: number;
-  mainCatCount: number;
-  subCatCount: number;
+  maxDepth: number;       // 1 = root only, 2 = has sub-cats, 3 = sub-sub-cats…
+  totalCatCount: number;  // total unique nodes across all levels
+  mainCatCount: number;   // root count (legacy)
+  subCatCount: number;    // level-2 count (legacy)
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -448,8 +450,11 @@ function fuzzyFindInMap(map: Record<string, string>, name: string): string | nul
 }
 
 // ─────────────────────────────────────────────────────────────
-// Bulk CSV Parser – handles the special format:
-//   _, Name, locatcity, Main Category, Sub Category, Mobile no, City
+// Bulk CSV Parser – N-level hierarchy support
+//   Required columns : Name, Main Category
+//   Optional columns : Sub Category, Sub Sub Category, Sub Sub Sub Category, …
+//                      (any column containing both "sub" and "cat" after Main Category)
+//   Optional columns : locatcity/address, Mobile no, City
 // ─────────────────────────────────────────────────────────────
 function parseBulkCSV(text: string): BulkImportData | null {
   const lines = text.split("\n");
@@ -483,15 +488,23 @@ function parseBulkCSV(text: string): BulkImportData | null {
   }
   if (headerIdx === -1) return null;
 
-  const nameIdx     = headerCols.findIndex(c => c.toLowerCase() === "name");
-  const addressIdx  = headerCols.findIndex(c => c.toLowerCase().includes("locat"));
-  const mainCatIdx  = headerCols.findIndex(c => c.toLowerCase().includes("main category"));
-  const subCatIdx   = headerCols.findIndex(c => c.toLowerCase().includes("sub category"));
-  const phoneIdx    = headerCols.findIndex(c => c.toLowerCase().includes("mobile"));
-  const cityIdx     = headerCols.findIndex(c => c.toLowerCase() === "city");
+  const nameIdx    = headerCols.findIndex(c => c.toLowerCase() === "name");
+  const addressIdx = headerCols.findIndex(c => c.toLowerCase().includes("locat"));
+  const mainCatIdx = headerCols.findIndex(c => c.toLowerCase().includes("main category"));
+  const phoneIdx   = headerCols.findIndex(c => c.toLowerCase().includes("mobile"));
+  const cityIdx    = headerCols.findIndex(c => c.toLowerCase() === "city");
 
-  const mainCats: Record<string, BulkMainCatData> = {};
+  // Detect ALL sub-category level columns (must contain "sub" AND "cat"), left-to-right after mainCatIdx
+  // e.g. "Sub Category", "Sub Sub Category", "Sub Sub Sub Category", "Sub Category 2", etc.
+  const subCatIdxs: number[] = headerCols
+    .map((col, idx) => ({ col: col.toLowerCase(), idx }))
+    .filter(({ col, idx }) => idx > mainCatIdx && col.includes("sub") && col.includes("cat"))
+    .sort((a, b) => a.idx - b.idx)
+    .map(({ idx }) => idx);
+
+  const tree: Record<string, BulkCatNode> = {};
   let totalBiz = 0;
+  let maxDepth = 1;
 
   for (let i = headerIdx + 1; i < lines.length; i++) {
     const line = lines[i].trim();
@@ -501,37 +514,53 @@ function parseBulkCSV(text: string): BulkImportData | null {
     const name    = nameIdx >= 0 ? cols[nameIdx] : "";
     if (!mainCat || !name) continue;
 
-    const subCat  = (subCatIdx >= 0 ? cols[subCatIdx] : "") || "General";
+    // Build sub-level path: read each sub-cat column, stop at first empty one
+    const subLevels: string[] = [];
+    for (const idx of subCatIdxs) {
+      const val = (cols[idx] || "").trim();
+      if (!val) break;          // stop when a level is empty — don't create gaps
+      subLevels.push(val);
+    }
+
+    // Full path depth: 1 (main only) + number of filled sub-levels
+    const depth = 1 + subLevels.length;
+    if (depth > maxDepth) maxDepth = depth;
+
     const address = addressIdx >= 0 ? cols[addressIdx] : "";
     const phone   = phoneIdx >= 0 ? cols[phoneIdx] : "";
     const city    = cityIdx >= 0 ? cols[cityIdx] : "";
-    // Keep any phone value as-is; only truly blank cells become empty
-    const cleanPhone = phone.toLowerCase().startsWith("show") ? phone : phone;
+    const row: BulkRow = { businessName: name, area: address, phone, city };
 
-    if (!mainCats[mainCat]) {
-      mainCats[mainCat] = {
-        emoji: CATEGORY_EMOJI_MAP[mainCat.toLowerCase()] || "📁",
-        subCats: {},
-      };
+    // ── Navigate / create nodes in the tree ──────────────────────────────
+    if (!tree[mainCat]) {
+      tree[mainCat] = { emoji: CATEGORY_EMOJI_MAP[mainCat.toLowerCase()] || "📁", rows: [], children: {} };
     }
-    if (!mainCats[mainCat].subCats[subCat]) {
-      mainCats[mainCat].subCats[subCat] = { rows: [] };
+    let node: BulkCatNode = tree[mainCat];
+
+    for (const seg of subLevels) {
+      if (!node.children[seg]) {
+        node.children[seg] = { emoji: "📌", rows: [], children: {} };
+      }
+      node = node.children[seg];
     }
-    mainCats[mainCat].subCats[subCat].rows.push({
-      businessName: name,
-      area: address,   // backend expects "area"
-      phone: cleanPhone,
-      city,
-    });
+
+    // Attach business to the deepest node of this row
+    node.rows.push(row);
     totalBiz++;
   }
 
-  const mainCatCount = Object.keys(mainCats).length;
-  let subCatCount = 0;
-  for (const mc of Object.values(mainCats)) {
-    subCatCount += Object.keys(mc.subCats).length;
-  }
-  return { mainCats, totalBiz, mainCatCount, subCatCount };
+  // Count all nodes recursively
+  const countNodes = (nodes: Record<string, BulkCatNode>): number => {
+    let c = Object.keys(nodes).length;
+    for (const n of Object.values(nodes)) c += countNodes(n.children);
+    return c;
+  };
+  const mainCatCount = Object.keys(tree).length;
+  const totalCatCount = countNodes(tree);
+  // Legacy: count direct level-2 children
+  const subCatCount = Object.values(tree).reduce((acc, n) => acc + Object.keys(n.children).length, 0);
+
+  return { tree, totalBiz, maxDepth, totalCatCount, mainCatCount, subCatCount };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -939,43 +968,15 @@ function CategoriesContent() {
   };
 
   // ─────────────────────────────────────────────────────────
-  // Bulk Import handler
+  // Bulk Import handler – N-level recursive
   // ─────────────────────────────────────────────────────────
   const handleBulkImport = async () => {
     if (!bulkParsed) return;
     setBulkImporting(true);
     setBulkResults(null);
 
-    const { mainCats } = bulkParsed;
-    const mainCatNames = Object.keys(mainCats);
+    const { tree } = bulkParsed;
     const results = { created: 0, skipped: 0, errors: [] as string[] };
-
-    // ── Step 1: Fetch fresh flat category list to get real IDs ──────────────
-    setBulkProgress({ done: 0, total: 1, current: "Fetching existing categories…" });
-    let freshAll: FlatCategory[] = [];
-    try {
-      const res = await api.get("/api/categories/admin/all");
-      freshAll = res.data || [];
-    } catch { /* proceed anyway */ }
-
-    // Build root category lookup: normalizedName → _id  (fuzzy-searchable)
-    const freshMainMap: Record<string, string> = {};
-    for (const c of freshAll) {
-      if (!c.parent_id) freshMainMap[normalizeCatName(c.name.trim())] = c._id;
-    }
-
-    // ── Calculate total steps ────────────────────────────────────────────────
-    let totalSteps = mainCatNames.length;
-    for (const mc of Object.values(mainCats)) {
-      totalSteps += Object.keys(mc.subCats).length;
-      if (bulkUploadBusinesses) {
-        for (const sub of Object.values(mc.subCats)) {
-          if (sub.rows.length > 0) totalSteps++;
-        }
-      }
-    }
-    let done = 0;
-    setBulkProgress({ done: 0, total: totalSteps, current: "Starting…" });
 
     // Helper: run promises in parallel batches
     const batchRun = async <T,>(items: T[], concurrency: number, fn: (item: T) => Promise<void>) => {
@@ -984,117 +985,144 @@ function CategoriesContent() {
       }
     };
 
-    for (const mainCatName of mainCatNames) {
-      const mc = mainCats[mainCatName];
-      const finalEmoji = bulkEmojiOverrides[mainCatName] ?? mc.emoji;
+    // ── Step 1: Fetch existing root categories for fast fuzzy-lookup ─────────
+    setBulkProgress({ done: 0, total: 1, current: "Fetching existing categories…" });
+    let freshAll: FlatCategory[] = [];
+    try {
+      const res = await api.get("/api/categories/admin/all");
+      freshAll = res.data || [];
+    } catch { /* proceed */ }
 
-      setBulkProgress({ done, total: totalSteps, current: `Resolving: ${mainCatName}` });
+    // idCache: "root" | parentId  →  { normalizedName → _id }
+    const idCache: Record<string, Record<string, string>> = { root: {} };
+    for (const c of freshAll) {
+      if (!c.parent_id) idCache["root"][normalizeCatName(c.name.trim())] = c._id;
+    }
 
-      // ── Find or create main cat ────────────────────────────────────────────
-      // Use fuzzy lookup: "Travel" matches existing "Travel & Tourism" etc.
-      let mainId: string | null = fuzzyFindInMap(freshMainMap, mainCatName);
-      if (!mainId) {
+    // ── Count total steps (nodes + optional upload steps) ───────────────────
+    const countSteps = (nodes: Record<string, BulkCatNode>): number => {
+      let n = Object.keys(nodes).length;
+      for (const node of Object.values(nodes)) {
+        n += countSteps(node.children);
+        if (bulkUploadBusinesses && node.rows.length > 0) n++;
+      }
+      return n;
+    };
+    const totalSteps = countSteps(tree);
+    let done = 0;
+    setBulkProgress({ done: 0, total: totalSteps, current: "Starting…" });
+
+    // ── Ensure a node exists (find existing or create), return its DB id ────
+    const ensureNode = async (
+      name: string,
+      parentId: string | null,
+      emoji: string,
+      label: string,
+    ): Promise<string | null> => {
+      const cacheKey = parentId ?? "root";
+
+      // Lazy-load children of this parent if not already cached
+      if (!idCache[cacheKey]) {
+        idCache[cacheKey] = {};
         try {
-          const res: any = await api.post("/api/categories/admin/node", {
-            name: mainCatName, icon: finalEmoji, parent_id: null,
-          });
-          // Backend now returns wasExisting:true when fuzzy/exact match found
-          mainId = (res?.data ?? res?.category ?? res)?._id ?? null;
-          if (mainId) freshMainMap[normalizeCatName(mainCatName)] = mainId;
-          if (res?.wasExisting) {
-            results.skipped++;
-          } else {
-            results.created++;
+          const r = parentId
+            ? await api.get(`/api/categories/${parentId}/children`)
+            : await api.get("/api/categories/admin/all");
+          const children: any[] = parentId
+            ? (r.data || [])
+            : (r.data || []).filter((c: any) => !c.parent_id);
+          for (const child of children) {
+            idCache[cacheKey][normalizeCatName(child.name.trim())] = child._id;
           }
-        } catch (err: any) {
-          if (err?.response?.status === 409) {
-            // Legacy fallback: re-fetch to get the existing ID
-            try {
-              const re = await api.get("/api/categories/admin/all");
-              const all: FlatCategory[] = re.data || [];
-              for (const c of all) {
-                if (!c.parent_id && fuzzyMatchCatNames(c.name.trim(), mainCatName)) {
-                  mainId = c._id;
-                  freshMainMap[normalizeCatName(c.name.trim())] = c._id;
-                  break;
-                }
-              }
-            } catch { /* ignore */ }
-            results.skipped++;
-          } else {
-            results.errors.push(`Main "${mainCatName}": ${err?.response?.data?.error ?? err.message}`);
-          }
-        }
-      } else {
-        results.skipped++;
+        } catch { /* proceed */ }
       }
 
-      done++;
-      setBulkProgress({ done, total: totalSteps, current: `✓ ${mainCatName}` });
-      if (!mainId) continue;
+      // Check fuzzy match against already-known children
+      const existing = fuzzyFindInMap(idCache[cacheKey], name);
+      if (existing) { results.skipped++; return existing; }
 
-      // ── Fetch real sub-cat nodes for this main cat (live from server) ────────
-      // Keys stored as normalizeCatName(name) for fuzzy-searchable lookup
-      const existingSubMap: Record<string, string> = {};
+      // Create new node
       try {
-        const childRes = await api.get(`/api/categories/${mainId}/children`);
-        const children: any[] = childRes.data || [];
-        for (const child of children) {
-          existingSubMap[normalizeCatName(child.name.trim())] = child._id;
+        const res: any = await api.post("/api/categories/admin/node", {
+          name, icon: emoji, parent_id: parentId,
+        });
+        const newId = (res?.data ?? res?.category ?? res)?._id ?? null;
+        if (newId) idCache[cacheKey][normalizeCatName(name)] = newId;
+        if (res?.wasExisting) { results.skipped++; } else { results.created++; }
+        return newId;
+      } catch (err: any) {
+        if (err?.response?.status === 409) {
+          results.skipped++;
+          // Recover existing id via re-fetch
+          try {
+            const re = parentId
+              ? await api.get(`/api/categories/${parentId}/children`)
+              : await api.get("/api/categories/admin/all");
+            const children: any[] = parentId
+              ? (re.data || [])
+              : (re.data || []).filter((c: any) => !c.parent_id);
+            for (const child of children) {
+              if (fuzzyMatchCatNames(child.name.trim(), name)) {
+                idCache[cacheKey][normalizeCatName(child.name.trim())] = child._id;
+                return child._id;
+              }
+            }
+          } catch { /* ignore */ }
+        } else {
+          results.errors.push(`"${label}": ${err?.response?.data?.error ?? err.message}`);
         }
-      } catch { /* proceed */ }
+        return null;
+      }
+    };
 
-      const subCatNames = Object.keys(mc.subCats);
+    // ── Recursively process a node: create it, recurse into children, upload biz ──
+    const processNode = async (
+      name: string,
+      node: BulkCatNode,
+      parentId: string | null,
+      depth: number,
+      pathLabel: string,
+    ): Promise<void> => {
+      const emoji = depth === 0 ? (bulkEmojiOverrides[name] ?? node.emoji) : node.emoji;
+      setBulkProgress({ done, total: totalSteps, current: `Resolving: ${pathLabel}` });
 
-      // ── Create missing sub-cat nodes in parallel batches of 8 ─────────────
-      // Use fuzzy lookup so "Hotels" matches existing "Hotels & Restaurants"
-      const toCreate = subCatNames.filter(s => !fuzzyFindInMap(existingSubMap, s));
-      const toSkip   = subCatNames.filter(s =>  fuzzyFindInMap(existingSubMap, s));
-      results.skipped += toSkip.length;
+      const nodeId = await ensureNode(name, parentId, emoji, pathLabel);
+      done++;
+      setBulkProgress({ done, total: totalSteps, current: `✓ ${pathLabel}` });
+      if (!nodeId) return;
 
-      await batchRun(toCreate, 8, async (subCatName) => {
-        try {
-          const res: any = await api.post("/api/categories/admin/node", {
-            name: subCatName, icon: "📌", parent_id: mainId,
-          });
-          const newId = (res?.data ?? res?.category ?? res)?._id ?? null;
-          if (newId) existingSubMap[normalizeCatName(subCatName)] = newId;
-          if (res?.wasExisting) {
-            results.skipped++;
-          } else {
-            results.created++;
-          }
-        } catch (err: any) {
-          if (err?.response?.status === 409) {
-            results.skipped++;
-          } else {
-            results.errors.push(`Sub "${subCatName}": ${err?.response?.data?.error ?? err.message}`);
-          }
-        }
-        done++;
-        setBulkProgress({ done, total: totalSteps, current: `Sub-cats: ${done}/${totalSteps}` });
+      // Recurse into children in parallel batches
+      const childNames = Object.keys(node.children);
+      await batchRun(childNames, 6, async (childName) => {
+        await processNode(
+          childName,
+          node.children[childName],
+          nodeId,
+          depth + 1,
+          `${pathLabel} › ${childName}`,
+        );
       });
 
-      // ── Upload businesses in parallel batches of 6 ───────────────────────
-      if (bulkUploadBusinesses) {
-        const uploadEntries = subCatNames
-          .map(s => ({ subName: s, subId: fuzzyFindInMap(existingSubMap, s), rows: mc.subCats[s].rows }))
-          .filter(e => e.subId && e.rows.length > 0);
-
-        await batchRun(uploadEntries, 6, async ({ subName, subId, rows }) => {
-          try {
-            const uploadRes: any = await api.post(
-              `/api/categories/admin/node/${subId}/upload-csv`,
-              { rows }
-            );
-            results.created += uploadRes?.created ?? rows.length;
-          } catch (err: any) {
-            results.errors.push(`Upload "${subName}": ${err?.response?.data?.error ?? err.message}`);
-          }
-          done++;
-          setBulkProgress({ done, total: totalSteps, current: `Uploading businesses: ${done}/${totalSteps}` });
-        });
+      // Upload businesses attached to this node (any level)
+      if (bulkUploadBusinesses && node.rows.length > 0) {
+        setBulkProgress({ done, total: totalSteps, current: `Uploading: ${pathLabel}` });
+        try {
+          const uploadRes: any = await api.post(
+            `/api/categories/admin/node/${nodeId}/upload-csv`,
+            { rows: node.rows },
+          );
+          results.created += uploadRes?.created ?? node.rows.length;
+        } catch (err: any) {
+          results.errors.push(`Upload "${pathLabel}": ${err?.response?.data?.error ?? err.message}`);
+        }
+        done++;
+        setBulkProgress({ done, total: totalSteps, current: `✓ Uploaded: ${pathLabel}` });
       }
+    };
+
+    // ── Process all root categories sequentially ─────────────────────────────
+    for (const rootName of Object.keys(tree)) {
+      await processNode(rootName, tree[rootName], null, 0, rootName);
     }
 
     setBulkImporting(false);
@@ -2032,10 +2060,10 @@ function BulkImportModal({
                 </div>
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3">
                   <p className="text-xs font-semibold text-amber-800 mb-1 flex items-center gap-1">
-                    <FileText className="w-3.5 h-3.5" /> Expected column format
+                    <FileText className="w-3.5 h-3.5" /> Expected column format (N-level)
                   </p>
-                  <p className="text-xs text-amber-700 font-mono">_, Name, locatcity (address), Main Category, Sub Category, Mobile no, City</p>
-                  <p className="text-xs text-amber-600 mt-1">The header row is auto-detected — blank/numeric leading rows are skipped automatically.</p>
+                  <p className="text-xs text-amber-700 font-mono">Name, locatcity, Main Category, Sub Category, [Sub Sub Category, Sub Sub Sub Category, …], Mobile no, City</p>
+                  <p className="text-xs text-amber-600 mt-1">Add as many <strong>Sub Category</strong> columns as needed for deeper levels. The header is auto-detected — blank/numeric leading rows are skipped.</p>
                 </div>
                 <label className={`flex flex-col items-center justify-center gap-3 w-full py-7 border-2 border-dashed rounded-xl cursor-pointer transition-all ${bulkFileName ? "border-indigo-300 bg-indigo-50" : "border-gray-200 hover:border-indigo-300 hover:bg-indigo-50"}`}>
                   <input type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFileSelect(f); }} />
@@ -2096,15 +2124,21 @@ function BulkImportModal({
                     <div className="flex items-center gap-2 mb-2">
                       <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">3</span>
                       <p className="text-sm font-semibold text-gray-700">
-                        Preview — {bulkParsed.mainCatCount} main categories &nbsp;
+                        Preview — {bulkParsed.mainCatCount} root categories · {bulkParsed.maxDepth} level{bulkParsed.maxDepth !== 1 ? "s" : ""} deep &nbsp;
                         <span className="text-gray-400 font-normal">(edit emoji if needed)</span>
                       </p>
                     </div>
                     <div className="border border-gray-200 rounded-xl overflow-hidden max-h-64 overflow-y-auto">
-                      {Object.entries(bulkParsed.mainCats).map(([catName, mc], i) => {
-                        const emoji = bulkEmojiOverrides[catName] ?? mc.emoji;
-                        const subCount = Object.keys(mc.subCats).length;
-                        const bizCount = Object.values(mc.subCats).reduce((acc, s) => acc + s.rows.length, 0);
+                      {Object.entries(bulkParsed.tree).map(([catName, node], i) => {
+                        const emoji = bulkEmojiOverrides[catName] ?? node.emoji;
+                        // Count all descendant nodes recursively
+                        const countDesc = (n: BulkCatNode): number =>
+                          Object.values(n.children).reduce((acc, c) => acc + 1 + countDesc(c), 0);
+                        const subCount = countDesc(node);
+                        // Count all businesses recursively
+                        const countBiz = (n: BulkCatNode): number =>
+                          n.rows.length + Object.values(n.children).reduce((acc, c) => acc + countBiz(c), 0);
+                        const bizCount = countBiz(node);
                         // Compute normalized preview for display
                         const normalizedPreviewStr = catName
                           .toLowerCase()
@@ -2150,11 +2184,11 @@ function BulkImportModal({
                               </p>
                             </div>
                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                              emoji === mc.emoji
+                              emoji === node.emoji
                                 ? "bg-indigo-50 text-indigo-600"
                                 : "bg-amber-50 text-amber-600"
                             }`}>
-                              {emoji === mc.emoji ? "auto" : "custom"}
+                              {emoji === node.emoji ? "auto" : "custom"}
                             </span>
                           </div>
                         );
@@ -2163,10 +2197,11 @@ function BulkImportModal({
                   </div>
 
                   {/* Summary banner */}
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-4 gap-3">
                     {[
-                      { label: "Main Categories", value: bulkParsed.mainCatCount, color: "bg-violet-50 border-violet-100 text-violet-700" },
-                      { label: "Sub-Categories", value: bulkParsed.subCatCount, color: "bg-blue-50 border-blue-100 text-blue-700" },
+                      { label: "Root Categories", value: bulkParsed.mainCatCount, color: "bg-violet-50 border-violet-100 text-violet-700" },
+                      { label: "Total Nodes", value: bulkParsed.totalCatCount, color: "bg-blue-50 border-blue-100 text-blue-700" },
+                      { label: "Max Depth", value: `${bulkParsed.maxDepth} level${bulkParsed.maxDepth !== 1 ? "s" : ""}`, color: "bg-amber-50 border-amber-100 text-amber-700" },
                       { label: "Business Listings", value: bulkUploadBusinesses ? bulkParsed.totalBiz.toLocaleString() : "—", color: "bg-emerald-50 border-emerald-100 text-emerald-700" },
                     ].map((s) => (
                       <div key={s.label} className={`${s.color} border rounded-xl p-3 text-center`}>

@@ -456,6 +456,72 @@ function fuzzyFindInMap(map: Record<string, string>, name: string): string | nul
 //                      (any column containing both "sub" and "cat" after Main Category)
 //   Optional columns : locatcity/address, Mobile no, City
 // ─────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────
+// Category-only CSV parser
+// Format: each row = comma-separated category path
+//   e.g.  Electronics, Mobiles, Smartphones
+//         Electronics, Laptops
+//         Food, Indian
+// No header required. Blank cells stop the path.
+// ─────────────────────────────────────────────────────────────
+function parseCategoryOnlyCSV(text: string): BulkImportData | null {
+  const lines = text.split("\n");
+  const splitLine = (line: string): string[] => {
+    const result: string[] = [];
+    let cur = ""; let inQ = false;
+    for (const ch of line) {
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { result.push(cur.trim()); cur = ""; }
+      else { cur += ch; }
+    }
+    result.push(cur.trim());
+    return result.map(c => c.replace(/^"|"$/g, "").trim());
+  };
+
+  const tree: Record<string, BulkCatNode> = {};
+  let maxDepth = 1;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const cols = splitLine(line);
+    // Build path: stop at first empty cell
+    const path: string[] = [];
+    for (const col of cols) {
+      if (!col) break;
+      path.push(col);
+    }
+    if (path.length === 0) continue;
+    if (path.length > maxDepth) maxDepth = path.length;
+
+    // Navigate / create nodes in the tree
+    const rootName = path[0];
+    if (!tree[rootName]) {
+      tree[rootName] = { emoji: CATEGORY_EMOJI_MAP[rootName.toLowerCase()] || "📁", rows: [], children: {} };
+    }
+    let node: BulkCatNode = tree[rootName];
+    for (let i = 1; i < path.length; i++) {
+      const seg = path[i];
+      if (!node.children[seg]) {
+        node.children[seg] = { emoji: "📌", rows: [], children: {} };
+      }
+      node = node.children[seg];
+    }
+  }
+
+  const mainCatCount = Object.keys(tree).length;
+  if (mainCatCount === 0) return null;
+  const countNodes = (nodes: Record<string, BulkCatNode>): number => {
+    let c = Object.keys(nodes).length;
+    for (const n of Object.values(nodes)) c += countNodes(n.children);
+    return c;
+  };
+  const totalCatCount = countNodes(tree);
+  const subCatCount = Object.values(tree).reduce((acc, n) => acc + Object.keys(n.children).length, 0);
+  return { tree, totalBiz: 0, maxDepth, totalCatCount, mainCatCount, subCatCount };
+}
+
 function parseBulkCSV(text: string): BulkImportData | null {
   const lines = text.split("\n");
 
@@ -645,6 +711,7 @@ function CategoriesContent() {
   const [bulkUploadBusinesses, setBulkUploadBusinesses] = useState(true);
   const [bulkEmojiOverrides, setBulkEmojiOverrides]   = useState<Record<string, string>>({});
   const [bulkResults, setBulkResults]                 = useState<{ created: number; skipped: number; errors: string[] } | null>(null);
+  const [bulkMode, setBulkMode]                       = useState<"business" | "category-only">("business");
 
   // ─────────────────────────────────────────────────────────
   // Fetch
@@ -1826,10 +1893,25 @@ function CategoriesContent() {
             setBulkEmojiOverrides({});
             const reader = new FileReader();
             reader.onload = (e) => {
-              const parsed = parseBulkCSV(e.target?.result as string);
-              setBulkParsed(parsed);
+              const text = e.target?.result as string;
+              // Auto-detect: try business CSV first, fall back to category-only
+              const businessParsed = parseBulkCSV(text);
+              if (businessParsed) {
+                setBulkMode("business");
+                setBulkParsed(businessParsed);
+              } else {
+                const catOnlyParsed = parseCategoryOnlyCSV(text);
+                setBulkMode("category-only");
+                setBulkParsed(catOnlyParsed);
+              }
             };
             reader.readAsText(file);
+          }}
+          bulkMode={bulkMode}
+          setBulkMode={(m) => {
+            setBulkMode(m);
+            setBulkParsed(null);
+            setBulkFileName("");
           }}
           onImport={handleBulkImport}
         />
@@ -1964,6 +2046,8 @@ function BulkImportModal({
   bulkResults,
   onFileSelect,
   onImport,
+  bulkMode,
+  setBulkMode,
 }: {
   onClose: () => void;
   bulkParsed: BulkImportData | null;
@@ -1977,6 +2061,8 @@ function BulkImportModal({
   bulkResults: { created: number; skipped: number; errors: string[] } | null;
   onFileSelect: (file: File) => void;
   onImport: () => void;
+  bulkMode: "business" | "category-only";
+  setBulkMode: (m: "business" | "category-only") => void;
 }) {
   const pct = bulkProgress.total > 0 ? Math.round((bulkProgress.done / bulkProgress.total) * 100) : 0;
 
@@ -1992,7 +2078,7 @@ function BulkImportModal({
             </div>
             <div>
               <h3 className="text-lg font-bold text-gray-900">Bulk Import CSV</h3>
-              <p className="text-xs text-gray-400">Auto-creates main categories, sub-categories & uploads business listings</p>
+              <p className="text-xs text-gray-400">Auto-creates categories from CSV — with or without business listings</p>
             </div>
           </div>
           <button onClick={onClose} disabled={bulkImporting} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-40">
@@ -2058,12 +2144,48 @@ function BulkImportModal({
                   <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">1</span>
                   <p className="text-sm font-semibold text-gray-700">Select your CSV file</p>
                 </div>
+                {/* Mode toggle */}
+                <div className="flex gap-2 mb-3">
+                  <button
+                    onClick={() => setBulkMode("category-only")}
+                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold border transition-all ${
+                      bulkMode === "category-only"
+                        ? "bg-indigo-600 text-white border-indigo-600"
+                        : "bg-white text-gray-600 border-gray-200 hover:border-indigo-300"
+                    }`}
+                  >
+                    📂 Category Only
+                  </button>
+                  <button
+                    onClick={() => setBulkMode("business")}
+                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold border transition-all ${
+                      bulkMode === "business"
+                        ? "bg-indigo-600 text-white border-indigo-600"
+                        : "bg-white text-gray-600 border-gray-200 hover:border-indigo-300"
+                    }`}
+                  >
+                    🏢 With Business Listings
+                  </button>
+                </div>
+
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3">
                   <p className="text-xs font-semibold text-amber-800 mb-1 flex items-center gap-1">
-                    <FileText className="w-3.5 h-3.5" /> Expected column format (N-level)
+                    <FileText className="w-3.5 h-3.5" />
+                    {bulkMode === "category-only" ? "Category-only format" : "Business listing format (N-level)"}
                   </p>
-                  <p className="text-xs text-amber-700 font-mono">Name, locatcity, Main Category, Sub Category, [Sub Sub Category, Sub Sub Sub Category, …], Mobile no, City</p>
-                  <p className="text-xs text-amber-600 mt-1">Add as many <strong>Sub Category</strong> columns as needed for deeper levels. The header is auto-detected — blank/numeric leading rows are skipped.</p>
+                  {bulkMode === "category-only" ? (
+                    <>
+                      <p className="text-xs text-amber-700 font-mono">Category 1, Category 2, Category 3</p>
+                      <p className="text-xs text-amber-700 font-mono">Electronics, Mobiles, Smartphones</p>
+                      <p className="text-xs text-amber-700 font-mono">Electronics, Laptops</p>
+                      <p className="text-xs text-amber-600 mt-1">Each row = one path. <strong>No header needed.</strong> Blank cells stop the path. Deeply nested levels supported.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xs text-amber-700 font-mono">Name, locatcity, Main Category, Sub Category, [Sub Sub Category, …], Mobile no, City</p>
+                      <p className="text-xs text-amber-600 mt-1">Add as many <strong>Sub Category</strong> columns as needed. Header is auto-detected — blank/numeric leading rows are skipped.</p>
+                    </>
+                  )}
                 </div>
                 <label className={`flex flex-col items-center justify-center gap-3 w-full py-7 border-2 border-dashed rounded-xl cursor-pointer transition-all ${bulkFileName ? "border-indigo-300 bg-indigo-50" : "border-gray-200 hover:border-indigo-300 hover:bg-indigo-50"}`}>
                   <input type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFileSelect(f); }} />
@@ -2076,7 +2198,7 @@ function BulkImportModal({
                         <p className="text-sm font-semibold text-indigo-700">{bulkFileName}</p>
                         {bulkParsed ? (
                           <p className="text-xs text-indigo-500 mt-0.5">
-                            {bulkParsed.mainCatCount} main categories · {bulkParsed.subCatCount} sub-categories · {bulkParsed.totalBiz.toLocaleString()} businesses
+                            {bulkParsed.mainCatCount} main · {bulkParsed.subCatCount} sub-categories · {bulkParsed.totalCatCount} total nodes{bulkParsed.totalBiz > 0 ? ` · ${bulkParsed.totalBiz.toLocaleString()} businesses` : ""}
                           </p>
                         ) : (
                           <p className="text-xs text-red-500 mt-0.5">Could not parse. Ensure the file matches the expected format.</p>

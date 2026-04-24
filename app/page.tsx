@@ -75,7 +75,14 @@ function DashboardContent() {
           `${progress.message} - Render free tier services sleep after inactivity. Please wait...`,
         );
       });
-      setStats(data);
+      // Map backend field names to what the dashboard expects
+      setStats({
+        ...data,
+        totalCards: data.businessCards ?? data.totalCards ?? 0,
+        totalMessages: data.feedbacks ?? data.totalMessages ?? 0,
+        totalGroups: data.categories ?? data.totalGroups ?? 0,
+        totalDownloads: data.users ?? data.totalDownloads ?? 0,
+      });
       setError(null);
     } catch (error: any) {
       console.error("Error fetching stats:", error);
@@ -696,7 +703,7 @@ function StatCard({ title, value, icon, trend }: any) {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-gray-600">{title}</p>
-          <p className="text-2xl font-bold mt-1">{value.toLocaleString()}</p>
+          <p className="text-2xl font-bold mt-1">{(value ?? 0).toLocaleString()}</p>
           {trend && <p className="text-xs text-green-600 mt-1">{trend}</p>}
         </div>
         <div>{icon}</div>

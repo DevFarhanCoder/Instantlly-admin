@@ -22,21 +22,30 @@ import { api } from "../lib/api";
 import Image from "next/image";
 
 interface Voucher {
-  _id: string;
-  voucherNumber: string;
-  companyName: string;
-  companyLogo?: string;
-  phoneNumber?: string;
-  address?: string;
-  amount: number;
-  discountPercentage?: number;
-  validity?: string;
-  voucherImage?: string;
+  id: number;
+  voucher_number?: string;
+  business_name: string;
+  title: string;
   description?: string;
-  isPublished: boolean;
-  publishedAt?: string;
-  expiryDate?: string;
-  createdAt: string;
+  discount_type: string;
+  discount_value: number;
+  mrp?: number;
+  amount?: number;
+  max_claims?: number;
+  claimed_count: number;
+  expires_at?: string;
+  expiry_date?: string;
+  status: string;       // "active" | "inactive"
+  is_published?: boolean;
+  company_name?: string;
+  company_logo?: string;
+  phone_number?: string;
+  address?: string;
+  discount_percentage?: number;
+  validity?: string;
+  voucher_image?: string;
+  voucher_images?: string[];
+  created_at: string;
 }
 
 function VouchersContent() {
@@ -46,8 +55,8 @@ function VouchersContent() {
   const [filter, setFilter] = useState<"all" | "published" | "unpublished">(
     "all",
   );
-  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
-  const [publishLoading, setPublishLoading] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState<number | null>(null);
+  const [publishLoading, setPublishLoading] = useState<number | null>(null);
 
   useEffect(() => {
     fetchVouchers();
@@ -57,11 +66,13 @@ function VouchersContent() {
     setLoading(true);
     try {
       const params: any = {};
-      if (filter === "published") params.isPublished = true;
-      if (filter === "unpublished") params.isPublished = false;
+      if (filter === "published") params.status = "active";
+      if (filter === "unpublished") params.status = "inactive";
 
       const data = await api.get("/api/admin/vouchers", { params });
-      setVouchers(data.vouchers || []);
+      // listVouchers returns raw array
+      const list: Voucher[] = Array.isArray(data) ? data : (data.vouchers || []);
+      setVouchers(list);
     } catch (error: any) {
       console.error("Error fetching vouchers:", error);
       alert(error.message || "Failed to fetch vouchers");
@@ -70,7 +81,7 @@ function VouchersContent() {
     }
   };
 
-  const handleDelete = async (voucherId: string, voucherName: string) => {
+  const handleDelete = async (voucherId: number, voucherName: string) => {
     const confirmed = window.confirm(
       `Are you sure you want to delete the voucher "${voucherName}"?\n\nThis action cannot be undone.`,
     );
@@ -90,11 +101,11 @@ function VouchersContent() {
     }
   };
 
-  const handlePublish = async (voucherId: string, currentStatus: boolean) => {
-    const action = currentStatus ? "unpublish" : "publish";
+  const handlePublish = async (voucherId: number, isActive: boolean) => {
+    const action = isActive ? "unpublish" : "publish";
     const confirmed = window.confirm(
       `Are you sure you want to ${action} this voucher?\n\n${
-        currentStatus
+        isActive
           ? "Users will no longer see this voucher in their app."
           : "This voucher will be visible to all users in their app."
       }`,
@@ -104,14 +115,10 @@ function VouchersContent() {
 
     setPublishLoading(voucherId);
     try {
-      if (currentStatus) {
-        // Unpublish by updating isPublished to false
-        await api.put(`/api/admin/vouchers/${voucherId}`, {
-          isPublished: false,
-        });
+      if (isActive) {
+        await api.post(`/api/admin/vouchers/${voucherId}/unpublish`, {});
         alert("Voucher unpublished successfully!");
       } else {
-        // Publish
         await api.post(`/api/admin/vouchers/${voucherId}/publish`, {});
         alert("Voucher published successfully!");
       }
@@ -126,8 +133,8 @@ function VouchersContent() {
 
   const filteredVouchers = vouchers;
 
-  const publishedCount = vouchers.filter((v) => v.isPublished).length;
-  const unpublishedCount = vouchers.filter((v) => !v.isPublished).length;
+  const publishedCount = vouchers.filter((v) => v.status === "active").length;
+  const unpublishedCount = vouchers.filter((v) => v.status !== "active").length;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -279,7 +286,7 @@ function VouchersContent() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredVouchers.map((voucher) => (
               <div
-                key={voucher._id}
+                key={voucher.id}
                 className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
               >
                 {/* Voucher Card Preview */}
@@ -289,18 +296,18 @@ function VouchersContent() {
                   <div className="absolute -bottom-8 -left-4 w-24 h-24 rounded-full bg-purple-100 opacity-30" />
 
                   {/* Discount Badge */}
-                  {voucher.discountPercentage && (
+                  {voucher.discount_percentage && (
                     <div className="absolute top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md z-10">
-                      -{voucher.discountPercentage}%
+                      -{voucher.discount_percentage}%
                     </div>
                   )}
 
                   {/* Company Logo */}
-                  {voucher.companyLogo ? (
+                  {voucher.company_logo ? (
                     <div className="w-14 h-14 bg-white rounded-xl mb-3 flex items-center justify-center overflow-hidden shadow-sm border border-gray-100">
                       <Image
-                        src={voucher.companyLogo}
-                        alt={voucher.companyName}
+                        src={voucher.company_logo}
+                        alt={voucher.company_name || voucher.business_name}
                         width={56}
                         height={56}
                         className="object-contain"
@@ -316,12 +323,13 @@ function VouchersContent() {
                   {/* Company Info */}
                   <div className="relative z-10">
                     <h3 className="text-lg font-bold text-gray-900 mb-0.5 leading-tight">
-                      {voucher.companyName}
+                      {voucher.company_name || voucher.business_name}
                     </h3>
-                    {voucher.phoneNumber && (
-                      <p className="text-xs text-gray-500 flex items-center gap-1">
+                    <p className="text-xs text-gray-600 font-medium">{voucher.title}</p>
+                    {voucher.phone_number && (
+                      <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                         <Phone className="w-3 h-3" />
-                        {voucher.phoneNumber}
+                        {voucher.phone_number}
                       </p>
                     )}
                     {voucher.address && (
@@ -332,13 +340,15 @@ function VouchersContent() {
                     )}
                   </div>
 
-                  {/* Amount */}
+                  {/* Value */}
                   <div className="absolute bottom-4 right-4 bg-indigo-600 rounded-xl px-4 py-2 shadow-md z-10">
                     <p className="text-xs text-indigo-200 leading-none mb-0.5">
-                      Value
+                      {voucher.discount_type === "percentage" ? "Discount" : "Value"}
                     </p>
                     <p className="text-2xl font-extrabold text-white leading-none">
-                      ₹{voucher.amount}
+                      {voucher.discount_type === "percentage"
+                        ? `${voucher.discount_value}%`
+                        : `₹${voucher.amount ?? voucher.discount_value}`}
                     </p>
                   </div>
                 </div>
@@ -347,17 +357,24 @@ function VouchersContent() {
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-xs font-mono bg-gray-100 px-2 py-1 rounded">
-                      {voucher.voucherNumber}
+                      {voucher.voucher_number || `#${voucher.id}`}
                     </span>
                     <span
                       className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        voucher.isPublished
+                        voucher.status === "active"
                           ? "bg-green-100 text-green-700"
                           : "bg-orange-100 text-orange-700"
                       }`}
                     >
-                      {voucher.isPublished ? "Published" : "Draft"}
+                      {voucher.status === "active" ? "Active" : "Inactive"}
                     </span>
+                  </div>
+
+                  <div className="flex gap-3 text-xs text-gray-500 mb-2">
+                    <span>Claims: <strong>{voucher.claimed_count}</strong>{voucher.max_claims ? `/${voucher.max_claims}` : ""}</span>
+                    {(voucher.expires_at || voucher.expiry_date) && (
+                      <span>Exp: <strong>{new Date(voucher.expires_at || voucher.expiry_date!).toLocaleDateString()}</strong></span>
+                    )}
                   </div>
 
                   {voucher.validity && (
@@ -377,7 +394,7 @@ function VouchersContent() {
                   <div className="flex gap-2">
                     <button
                       onClick={() =>
-                        router.push(`/vouchers/${voucher._id}/edit`)
+                        router.push(`/vouchers/${voucher.id}/edit`)
                       }
                       className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
                     >
@@ -386,32 +403,32 @@ function VouchersContent() {
                     </button>
                     <button
                       onClick={() =>
-                        handlePublish(voucher._id, voucher.isPublished)
+                        handlePublish(voucher.id, voucher.status === "active")
                       }
-                      disabled={publishLoading === voucher._id}
+                      disabled={publishLoading === voucher.id}
                       className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm ${
-                        voucher.isPublished
+                        voucher.status === "active"
                           ? "bg-orange-600 text-white hover:bg-orange-700"
                           : "bg-green-600 text-white hover:bg-green-700"
                       } disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
-                      {publishLoading === voucher._id ? (
+                      {publishLoading === voucher.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : voucher.isPublished ? (
+                      ) : voucher.status === "active" ? (
                         <XCircle className="w-4 h-4" />
                       ) : (
                         <CheckCircle className="w-4 h-4" />
                       )}
-                      {voucher.isPublished ? "Unpublish" : "Publish"}
+                      {voucher.status === "active" ? "Deactivate" : "Activate"}
                     </button>
                     <button
                       onClick={() =>
-                        handleDelete(voucher._id, voucher.companyName)
+                        handleDelete(voucher.id, voucher.company_name || voucher.business_name)
                       }
-                      disabled={deleteLoading === voucher._id}
+                      disabled={deleteLoading === voucher.id}
                       className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {deleteLoading === voucher._id ? (
+                      {deleteLoading === voucher.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
                         <Trash2 className="w-4 h-4" />

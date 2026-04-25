@@ -19,6 +19,7 @@ import {
   Users,
   Zap,
   Layers,
+  CalendarDays,
 } from "lucide-react";
 import {
   LineChart,
@@ -374,6 +375,13 @@ function DashboardContent() {
               color: "text-violet-600",
               bg: "hover:bg-violet-100",
             },
+            {
+              label: "Events",
+              icon: <CalendarDays className="w-5 h-5" />,
+              path: "/events",
+              color: "text-rose-600",
+              bg: "hover:bg-rose-100",
+            },
           ].map(({ label, icon, path, color, bg }) => (
             <button
               key={path}
@@ -703,7 +711,9 @@ function StatCard({ title, value, icon, trend }: any) {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-gray-600">{title}</p>
-          <p className="text-2xl font-bold mt-1">{(value ?? 0).toLocaleString()}</p>
+          <p className="text-2xl font-bold mt-1">
+            {(value ?? 0).toLocaleString()}
+          </p>
           {trend && <p className="text-xs text-green-600 mt-1">{trend}</p>}
         </div>
         <div>{icon}</div>

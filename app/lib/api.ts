@@ -176,6 +176,18 @@ export const api = {
   ) =>
     apiRequest<T>(endpoint, { ...config, method: "DELETE" }, onWakeUpProgress),
 
+  patch: <T = any>(
+    endpoint: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+    onWakeUpProgress?: (progress: WakeUpProgress) => void,
+  ) =>
+    apiRequest<T>(
+      endpoint,
+      { ...config, method: "PATCH", data },
+      onWakeUpProgress,
+    ),
+
   uploadImage: async (file: File): Promise<string> => {
     const formData = new FormData();
     formData.append("image", file);

@@ -3,7 +3,7 @@ import axios, { AxiosRequestConfig } from "axios";
 // Backend API base URL (without /api suffix - endpoints include it)
 // AWS Cloud (Primary) with Render backup
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE || "https://api.instantllycards.com";
+  process.env.NEXT_PUBLIC_API_BASE || "https://backend.instantllycards.com";
 const ADMIN_KEY =
   process.env.NEXT_PUBLIC_ADMIN_KEY || "your-secure-admin-key-here";
 
